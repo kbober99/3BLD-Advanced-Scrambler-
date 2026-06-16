@@ -6,7 +6,6 @@
 <title>BLD Scramble Generator</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
-<script src="https://cdn.jsdelivr.net/pyodide/v0.26.4/full/pyodide.js"></script>
 <style>
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -996,12 +995,7 @@ function applyScheme() {
   // patch Python cube stickers
   const schemeJson = JSON.stringify(newScheme);
   if (pyReady) {
-    pyodide.runPythonAsync(`
-import json as _json
-_scheme = _json.loads('${schemeJson.replace(/'/g, "\\'")}')
-# patch all Cube instances created later by overriding __init__ defaults
-_CUSTOM_STICKERS = _scheme
-`).then(() => setStatus('ready', 'Schemat zastosowany'));
+    rebootWorkersWithScheme(newScheme);
   }
 }
 
@@ -1014,7 +1008,7 @@ function resetScheme() {
   ADV_OPTIONS['memo-e'] = genPairs(EDGE_LETTERS);
   ADV_OPTIONS['memo-c'] = genPairs(CORNER_LETTERS);
   ADV_OPTIONS['memo-ltct'] = CORNER_LETTERS.flatMap(a => CORNER_LETTERS.filter(b => b !== a).map(b => a + b.toLowerCase()));
-  if (pyReady) pyodide.runPythonAsync('_CUSTOM_STICKERS = None').then(() => setStatus('ready', 'Przywrócono domyślny schemat'));
+  if (pyReady) rebootWorkersWithScheme(null);
 }
 
 // ── Advanced panel ─────────────────────────────────────────────────────────
@@ -1326,36 +1320,91 @@ function makeInput(f, val, onchange) {
   return inp;
 }
 
-// ── Pyodide boot ───────────────────────────────────────────────────────────
+// ── Web Worker pool ────────────────────────────────────────────────────────
 let pyReady = false;
+let workers = [];
+let workerReady = [];
+const NUM_WORKERS = Math.max(1, (navigator.hardwareConcurrency || 4) - 2);
+
+const PY_FILES = {
+  'cube_rings.py': CUBE_RINGS,
+  'cube_moves.py': CUBE_MOVES,
+  'cube.py': CUBE_PY,
+  'solve.py': SOLVE_PY,
+  'main.py': MAIN_PY,
+};
 
 async function bootPyodide() {
-  setStatus('loading', 'Ładowanie środowiska Python…');
+  setStatus('loading', `Ładowanie ${NUM_WORKERS} workerów…`);
+  workers = [];
+  workerReady = [];
+
+  const promises = Array.from({ length: NUM_WORKERS }, (_, i) => new Promise((resolve, reject) => {
+    const w = new Worker('worker.js');
+    workers.push(w);
+    workerReady.push(false);
+
+    w.onmessage = (e) => {
+      if (e.data.type === 'ready') {
+        workerReady[i] = true;
+        const readyCount = workerReady.filter(Boolean).length;
+        setStatus('loading', `Ładowanie workerów… ${readyCount}/${NUM_WORKERS}`);
+        if (workerReady.every(Boolean)) resolve();
+      }
+    };
+    w.onerror = (e) => reject(new Error(e.message));
+
+    w.postMessage({
+      type: 'init',
+      pyFiles: PY_FILES,
+      initCode: INIT_CODE,
+      customStickers: null,
+    });
+  }));
+
   try {
-    window.pyodide = await loadPyodide();
-
-    // inject source files
-    const files = { 'cube_rings.py': CUBE_RINGS, 'cube_moves.py': CUBE_MOVES, 'cube.py': CUBE_PY, 'solve.py': SOLVE_PY, 'main.py': MAIN_PY };
-    for (const [name, src] of Object.entries(files)) {
-      pyodide.FS.writeFile(name, src, { encoding: 'utf8' });
-    }
-
-    await pyodide.runPythonAsync(`import sys; sys.path.insert(0, '/home/pyodide')`);
-    await pyodide.runPythonAsync(INIT_CODE);
-
+    await Promise.all(promises);
     pyReady = true;
-    setStatus('ready', 'Gotowe — środowisko Python załadowane');
+    setStatus('ready', `Gotowe — ${NUM_WORKERS} workerów aktywnych`);
     document.getElementById('generateBtn').disabled = false;
-  } catch (e) {
+  } catch(e) {
     const msg = e.message || String(e);
     const isWasm = msg.includes('wasm') || msg.includes('DataClone') || msg.includes('postMessage');
     if (isWasm) {
-      setStatus('error', 'WASM niedostępny w tym środowisku — wgraj plik na GitHub Pages lub otwórz lokalnie');
+      setStatus('error', 'WASM niedostępny — otwórz lokalnie lub na GitHub Pages');
       document.getElementById('generateBtn').textContent = 'Niedostępne w podglądzie';
     } else {
       setStatus('error', 'Błąd: ' + msg);
     }
   }
+}
+
+// Restart workers with new custom stickers
+async function rebootWorkersWithScheme(customStickers) {
+  workers.forEach(w => w.terminate());
+  workers = [];
+  workerReady = [];
+  pyReady = false;
+  document.getElementById('generateBtn').disabled = true;
+  setStatus('loading', `Przeładowanie workerów ze schematem…`);
+
+  const promises = Array.from({ length: NUM_WORKERS }, (_, i) => new Promise((resolve) => {
+    const w = new Worker('worker.js');
+    workers.push(w);
+    workerReady.push(false);
+    w.onmessage = (e) => {
+      if (e.data.type === 'ready') {
+        workerReady[i] = true;
+        if (workerReady.every(Boolean)) resolve();
+      }
+    };
+    w.postMessage({ type: 'init', pyFiles: PY_FILES, initCode: INIT_CODE, customStickers });
+  }));
+
+  await Promise.all(promises);
+  pyReady = true;
+  setStatus('ready', `Schemat zastosowany — ${NUM_WORKERS} workerów aktywnych`);
+  document.getElementById('generateBtn').disabled = false;
 }
 
 function setStatus(type, msg) {
@@ -2050,6 +2099,71 @@ def generate_scrambles(n, filters_json, parity_filter=None, adv_json='{}'):
     valid = len(results)
     hit_rate = round(valid / attempts * 100, 1) if attempts > 0 else 0
     return json.dumps({'found': valid, 'attempts': attempts, 'hit_rate': hit_rate, 'scrambles': results})
+
+def generate_chunk(n, filters_json, parity_filter=None, adv_json='{}', max_attempts=2000):
+    adv = json.loads(adv_json)
+    def check_set(required, actual, logic):
+        if not required: return True
+        s = set(actual)
+        if logic == 'and': return required.issubset(s)
+        else: return bool(required & s)
+
+    req_flipped_e = set(adv.get('flipped_e', [])); logic_flipped_e = adv.get('flipped_e_logic','or')
+    req_twisted_c = set(adv.get('twisted_c', [])); logic_twisted_c = adv.get('twisted_c_logic','or')
+    req_solved_e  = set(adv.get('solved_e',  [])); logic_solved_e  = adv.get('solved_e_logic', 'or')
+    req_solved_c  = set(adv.get('solved_c',  [])); logic_solved_c  = adv.get('solved_c_logic', 'or')
+    req_memo_e    = set(adv.get('memo_e',    [])); logic_memo_e    = adv.get('memo_e_logic',   'or')
+    req_memo_c    = set(adv.get('memo_c',    [])); logic_memo_c    = adv.get('memo_c_logic',   'or')
+    req_memo_ltct = set(adv.get('memo_ltct', [])); logic_memo_ltct = adv.get('memo_ltct_logic','or')
+    filters = json.loads(filters_json)
+    solved_cube = Cube()
+    results = []
+    attempts = 0
+    while len(results) < n and attempts < max_attempts:
+        attempts += 1
+        scr = scramble(20)
+        try:
+            s = Solve(scr)
+        except Exception:
+            continue
+        if not matches_filter(len(s.memorized_edges), filters.get('edges')): continue
+        if not matches_filter(len(''.join(s.corner_memo_pairs)), filters.get('corners')): continue
+        if not matches_filter(s.flips, filters.get('flips')): continue
+        if not matches_filter(s.twists, filters.get('twists')): continue
+        twists = [g for g in s.flipped_groups if len(g) == 3]
+        if s.parity and twists and s.corner_memo_pairs:
+            last_c = s.corner_memo_pairs[-1][-1]
+            ltct_codes = [last_c + solved_cube.stickers[t].lower() for t in twists]
+        else:
+            ltct_codes = []
+        if req_memo_ltct and not check_set(req_memo_ltct, ltct_codes, logic_memo_ltct): continue
+        if req_memo_e and s.edge_breaks != 0: continue
+        elif not matches_filter(s.edge_breaks, filters.get('breaks_e')): continue
+        if (req_memo_c or req_memo_ltct) and s.corner_breaks != 0: continue
+        elif not matches_filter(s.corner_breaks, filters.get('breaks_c')): continue
+        if not matches_filter(s.solved_edges, filters.get('solved_e')): continue
+        if not matches_filter(s.solved_corners, filters.get('solved_c')): continue
+        if parity_filter is not None and bool(s.parity) != bool(parity_filter): continue
+        if not check_set(req_flipped_e, s.flipped_groups,   logic_flipped_e): continue
+        if not check_set(req_twisted_c, s.flipped_groups,   logic_twisted_c): continue
+        if not check_set(req_solved_e,  s.solved_groups,    logic_solved_e):  continue
+        if not check_set(req_solved_c,  s.solved_groups,    logic_solved_c):  continue
+        if not check_set(req_memo_e,    s.edge_memo_pairs,  logic_memo_e):    continue
+        if not check_set(req_memo_c,    s.corner_memo_pairs,logic_memo_c):    continue
+        results.append({
+            'scramble': scr,
+            'ltct': ltct_codes,
+            'edges': len(s.memorized_edges),
+            'corners': len(''.join(s.corner_memo_pairs)),
+            'flips': s.flips,
+            'twists': s.twists,
+            'breaks_e': s.edge_breaks,
+            'breaks_c': s.corner_breaks,
+            'solved_e': s.solved_edges,
+            'solved_c': s.solved_corners,
+            'parity': bool(s.parity)
+        })
+    return json.dumps({'results': results, 'attempts': attempts})
 `;
 
 // ── Init ───────────────────────────────────────────────────────────────────
