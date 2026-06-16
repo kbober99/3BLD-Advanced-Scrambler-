@@ -588,6 +588,101 @@
   .btn-cancel:hover { border-color: var(--error); color: var(--error); }
   .btn-confirm { background: var(--accent); border: 1px solid var(--accent); color: #fff; }
   .btn-confirm:hover { opacity: 0.85; }
+
+  .scheme-toggle {
+    background: transparent;
+    border: none;
+    color: var(--muted);
+    font-family: var(--mono);
+    font-size: 0.72rem;
+    cursor: pointer;
+    padding: 0;
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    transition: color 0.15s;
+    width: 100%;
+    text-align: left;
+    margin-top: 0.25rem;
+  }
+  .scheme-toggle:hover { color: var(--text); }
+  .scheme-toggle .arrow { transition: transform 0.2s; display: inline-block; }
+  .scheme-toggle.open .arrow { transform: rotate(90deg); }
+
+  .scheme-panel {
+    display: none;
+    flex-direction: column;
+    gap: 0.75rem;
+    padding-top: 0.75rem;
+    border-top: 1px solid var(--border);
+    margin-top: 0.5rem;
+  }
+  .scheme-panel.open { display: flex; }
+
+  .scheme-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0 1.25rem;
+  }
+
+  .scheme-col { display: flex; flex-direction: column; gap: 0.25rem; }
+
+  .scheme-row {
+    display: grid;
+    grid-template-columns: 3rem 1fr;
+    align-items: center;
+    gap: 0.4rem;
+  }
+
+  .scheme-pos {
+    font-family: var(--mono);
+    font-size: 0.72rem;
+    color: var(--muted);
+  }
+
+  .scheme-input {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    color: var(--text);
+    font-family: var(--mono);
+    font-size: 0.78rem;
+    padding: 0.2rem 0.4rem;
+    border-radius: 3px;
+    width: 100%;
+    text-transform: uppercase;
+  }
+  .scheme-input:focus { outline: none; border-color: var(--accent); }
+  .scheme-input.changed { border-color: var(--accent2); color: var(--accent2); }
+
+  .scheme-actions {
+    display: flex;
+    gap: 0.5rem;
+  }
+  .scheme-apply-btn {
+    flex: 1;
+    background: var(--accent);
+    border: none;
+    color: #fff;
+    font-family: var(--mono);
+    font-size: 0.75rem;
+    padding: 0.4rem;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: opacity 0.15s;
+  }
+  .scheme-apply-btn:hover { opacity: 0.85; }
+  .scheme-reset-btn {
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--muted);
+    font-family: var(--mono);
+    font-size: 0.75rem;
+    padding: 0.4rem 0.75rem;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  .scheme-reset-btn:hover { border-color: var(--error); color: var(--error); }
 </style>
 </head>
 <body>
@@ -623,6 +718,73 @@
       </div>
     </div>
 
+
+    <hr class="divider">
+    <div>
+      <button class="scheme-toggle" id="schemeToggle" onclick="toggleScheme()">
+        <span class="arrow">▶</span> własny schemat oznaczeń
+      </button>
+      <div class="scheme-panel" id="schemePanel">
+        <div class="scheme-grid">
+          <div class="scheme-col">
+            <div class="section-label">Krawędzie</div>
+            <div class="scheme-row"><span class="scheme-pos">UB</span><input class="scheme-input" id="sch-UB" value="A" maxlength="3" data-default="A" oninput="onSchemeInput(this)"></div>
+<div class="scheme-row"><span class="scheme-pos">BU</span><input class="scheme-input" id="sch-BU" value="B" maxlength="3" data-default="B" oninput="onSchemeInput(this)"></div>
+<div class="scheme-row"><span class="scheme-pos">UL</span><input class="scheme-input" id="sch-UL" value="E" maxlength="3" data-default="E" oninput="onSchemeInput(this)"></div>
+<div class="scheme-row"><span class="scheme-pos">LU</span><input class="scheme-input" id="sch-LU" value="F" maxlength="3" data-default="F" oninput="onSchemeInput(this)"></div>
+<div class="scheme-row"><span class="scheme-pos">UR</span><input class="scheme-input" id="sch-UR" value="G" maxlength="3" data-default="G" oninput="onSchemeInput(this)"></div>
+<div class="scheme-row"><span class="scheme-pos">RU</span><input class="scheme-input" id="sch-RU" value="H" maxlength="3" data-default="H" oninput="onSchemeInput(this)"></div>
+<div class="scheme-row"><span class="scheme-pos">DF</span><input class="scheme-input" id="sch-DF" value="I" maxlength="3" data-default="I" oninput="onSchemeInput(this)"></div>
+<div class="scheme-row"><span class="scheme-pos">FD</span><input class="scheme-input" id="sch-FD" value="J" maxlength="3" data-default="J" oninput="onSchemeInput(this)"></div>
+<div class="scheme-row"><span class="scheme-pos">DL</span><input class="scheme-input" id="sch-DL" value="M" maxlength="3" data-default="M" oninput="onSchemeInput(this)"></div>
+<div class="scheme-row"><span class="scheme-pos">LD</span><input class="scheme-input" id="sch-LD" value="N" maxlength="3" data-default="N" oninput="onSchemeInput(this)"></div>
+<div class="scheme-row"><span class="scheme-pos">DB</span><input class="scheme-input" id="sch-DB" value="O" maxlength="3" data-default="O" oninput="onSchemeInput(this)"></div>
+<div class="scheme-row"><span class="scheme-pos">BD</span><input class="scheme-input" id="sch-BD" value="P" maxlength="3" data-default="P" oninput="onSchemeInput(this)"></div>
+<div class="scheme-row"><span class="scheme-pos">DR</span><input class="scheme-input" id="sch-DR" value="K" maxlength="3" data-default="K" oninput="onSchemeInput(this)"></div>
+<div class="scheme-row"><span class="scheme-pos">RD</span><input class="scheme-input" id="sch-RD" value="L" maxlength="3" data-default="L" oninput="onSchemeInput(this)"></div>
+<div class="scheme-row"><span class="scheme-pos">FR</span><input class="scheme-input" id="sch-FR" value="R" maxlength="3" data-default="R" oninput="onSchemeInput(this)"></div>
+<div class="scheme-row"><span class="scheme-pos">RF</span><input class="scheme-input" id="sch-RF" value="S" maxlength="3" data-default="S" oninput="onSchemeInput(this)"></div>
+<div class="scheme-row"><span class="scheme-pos">FL</span><input class="scheme-input" id="sch-FL" value="T" maxlength="3" data-default="T" oninput="onSchemeInput(this)"></div>
+<div class="scheme-row"><span class="scheme-pos">LF</span><input class="scheme-input" id="sch-LF" value="U" maxlength="3" data-default="U" oninput="onSchemeInput(this)"></div>
+<div class="scheme-row"><span class="scheme-pos">BL</span><input class="scheme-input" id="sch-BL" value="W" maxlength="3" data-default="W" oninput="onSchemeInput(this)"></div>
+<div class="scheme-row"><span class="scheme-pos">LB</span><input class="scheme-input" id="sch-LB" value="C" maxlength="3" data-default="C" oninput="onSchemeInput(this)"></div>
+<div class="scheme-row"><span class="scheme-pos">BR</span><input class="scheme-input" id="sch-BR" value="D" maxlength="3" data-default="D" oninput="onSchemeInput(this)"></div>
+<div class="scheme-row"><span class="scheme-pos">RB</span><input class="scheme-input" id="sch-RB" value="Z" maxlength="3" data-default="Z" oninput="onSchemeInput(this)"></div>
+
+          </div>
+          <div class="scheme-col">
+            <div class="section-label">Rogi</div>
+            <div class="scheme-row"><span class="scheme-pos">UFL</span><input class="scheme-input" id="sch-UFL" value="G" maxlength="3" data-default="G" oninput="onSchemeInput(this)"></div>
+<div class="scheme-row"><span class="scheme-pos">FUL</span><input class="scheme-input" id="sch-FUL" value="H" maxlength="3" data-default="H" oninput="onSchemeInput(this)"></div>
+<div class="scheme-row"><span class="scheme-pos">LUF</span><input class="scheme-input" id="sch-LUF" value="I" maxlength="3" data-default="I" oninput="onSchemeInput(this)"></div>
+<div class="scheme-row"><span class="scheme-pos">UBR</span><input class="scheme-input" id="sch-UBR" value="A" maxlength="3" data-default="A" oninput="onSchemeInput(this)"></div>
+<div class="scheme-row"><span class="scheme-pos">BUR</span><input class="scheme-input" id="sch-BUR" value="B" maxlength="3" data-default="B" oninput="onSchemeInput(this)"></div>
+<div class="scheme-row"><span class="scheme-pos">RUB</span><input class="scheme-input" id="sch-RUB" value="C" maxlength="3" data-default="C" oninput="onSchemeInput(this)"></div>
+<div class="scheme-row"><span class="scheme-pos">UBL</span><input class="scheme-input" id="sch-UBL" value="D" maxlength="3" data-default="D" oninput="onSchemeInput(this)"></div>
+<div class="scheme-row"><span class="scheme-pos">BUL</span><input class="scheme-input" id="sch-BUL" value="E" maxlength="3" data-default="E" oninput="onSchemeInput(this)"></div>
+<div class="scheme-row"><span class="scheme-pos">LUB</span><input class="scheme-input" id="sch-LUB" value="F" maxlength="3" data-default="F" oninput="onSchemeInput(this)"></div>
+<div class="scheme-row"><span class="scheme-pos">DBR</span><input class="scheme-input" id="sch-DBR" value="J" maxlength="3" data-default="J" oninput="onSchemeInput(this)"></div>
+<div class="scheme-row"><span class="scheme-pos">BDR</span><input class="scheme-input" id="sch-BDR" value="K" maxlength="3" data-default="K" oninput="onSchemeInput(this)"></div>
+<div class="scheme-row"><span class="scheme-pos">RDB</span><input class="scheme-input" id="sch-RDB" value="M" maxlength="3" data-default="M" oninput="onSchemeInput(this)"></div>
+<div class="scheme-row"><span class="scheme-pos">DFR</span><input class="scheme-input" id="sch-DFR" value="N" maxlength="3" data-default="N" oninput="onSchemeInput(this)"></div>
+<div class="scheme-row"><span class="scheme-pos">FDR</span><input class="scheme-input" id="sch-FDR" value="O" maxlength="3" data-default="O" oninput="onSchemeInput(this)"></div>
+<div class="scheme-row"><span class="scheme-pos">RDF</span><input class="scheme-input" id="sch-RDF" value="P" maxlength="3" data-default="P" oninput="onSchemeInput(this)"></div>
+<div class="scheme-row"><span class="scheme-pos">DFL</span><input class="scheme-input" id="sch-DFL" value="R" maxlength="3" data-default="R" oninput="onSchemeInput(this)"></div>
+<div class="scheme-row"><span class="scheme-pos">FDL</span><input class="scheme-input" id="sch-FDL" value="S" maxlength="3" data-default="S" oninput="onSchemeInput(this)"></div>
+<div class="scheme-row"><span class="scheme-pos">LDF</span><input class="scheme-input" id="sch-LDF" value="T" maxlength="3" data-default="T" oninput="onSchemeInput(this)"></div>
+<div class="scheme-row"><span class="scheme-pos">DBL</span><input class="scheme-input" id="sch-DBL" value="U" maxlength="3" data-default="U" oninput="onSchemeInput(this)"></div>
+<div class="scheme-row"><span class="scheme-pos">BDL</span><input class="scheme-input" id="sch-BDL" value="W" maxlength="3" data-default="W" oninput="onSchemeInput(this)"></div>
+<div class="scheme-row"><span class="scheme-pos">LDB</span><input class="scheme-input" id="sch-LDB" value="Z" maxlength="3" data-default="Z" oninput="onSchemeInput(this)"></div>
+
+          </div>
+        </div>
+        <div class="scheme-actions">
+          <button class="scheme-apply-btn" onclick="applyScheme()">Zastosuj schemat</button>
+          <button class="scheme-reset-btn" onclick="resetScheme()">Przywróć domyślne</button>
+        </div>
+      </div>
+    </div>
+
     <hr class="divider">
 
     <div>
@@ -631,7 +793,7 @@
         <label>Ile generować?</label>
         <input type="number" id="nScrambles" value="10" min="1" max="200" style="width:70px">
       </div>
-      <p class="attempts-note" style="margin-top:0.6rem">maks. 5000 prób na scramble</p>
+      <p class="attempts-note" style="margin-top:0.6rem">maks. 50000 prób na scramble</p>
     </div>
 
 
@@ -798,6 +960,62 @@ FILTERS.forEach(f => { state[f.id] = { mode: 'any', exact: '', min: '', max: '' 
 // parity state: 'any' | true | false
 let parityState = 'any';
 
+
+const DEFAULT_STICKERS = {"UB": "A", "BU": "B", "UL": "E", "LU": "F", "UR": "G", "RU": "H", "DF": "I", "FD": "J", "DL": "M", "LD": "N", "DB": "O", "BD": "P", "DR": "K", "RD": "L", "FR": "R", "RF": "S", "FL": "T", "LF": "U", "BL": "W", "LB": "C", "BR": "D", "RB": "Z", "UFL": "G", "FUL": "H", "LUF": "I", "UBR": "A", "BUR": "B", "RUB": "C", "UBL": "D", "BUL": "E", "LUB": "F", "DBR": "J", "BDR": "K", "RDB": "M", "DFR": "N", "FDR": "O", "RDF": "P", "DFL": "R", "FDL": "S", "LDF": "T", "DBL": "U", "BDL": "W", "LDB": "Z"};
+let currentScheme = {...DEFAULT_STICKERS};
+
+function toggleScheme() {
+  const btn = document.getElementById('schemeToggle');
+  const panel = document.getElementById('schemePanel');
+  btn.classList.toggle('open');
+  panel.classList.toggle('open');
+}
+
+function onSchemeInput(inp) {
+  inp.classList.toggle('changed', inp.value.toUpperCase() !== inp.dataset.default);
+}
+
+function applyScheme() {
+  const newScheme = {};
+  for (const key of Object.keys(DEFAULT_STICKERS)) {
+    const inp = document.getElementById('sch-' + key);
+    newScheme[key] = inp ? inp.value.trim().toUpperCase() || DEFAULT_STICKERS[key] : DEFAULT_STICKERS[key];
+  }
+  currentScheme = newScheme;
+
+  // rebuild EDGE_LETTERS and CORNER_LETTERS from new scheme
+  const edgePositions = ['UB','BU','UL','LU','UR','RU','DF','FD','DL','LD','DB','BD','DR','RD','FR','RF','FL','LF','BL','LB','BR','RB'];
+  const cornerPositions = ['UFL','FUL','LUF','UBR','BUR','RUB','UBL','BUL','LUB','DBR','BDR','RDB','DFR','FDR','RDF','DFL','FDL','LDF','DBL','BDL','LDB'];
+  const newEdgeLetters = [...new Set(edgePositions.map(p => newScheme[p]).filter(Boolean))].sort();
+  const newCornerLetters = [...new Set(cornerPositions.map(p => newScheme[p]).filter(Boolean))].sort();
+
+  ADV_OPTIONS['memo-e'] = genPairs(newEdgeLetters);
+  ADV_OPTIONS['memo-c'] = genPairs(newCornerLetters);
+  ADV_OPTIONS['memo-ltct'] = newCornerLetters.flatMap(a => newCornerLetters.filter(b => b !== a).map(b => a + b.toLowerCase()));
+
+  // patch Python cube stickers
+  const schemeJson = JSON.stringify(newScheme);
+  if (pyReady) {
+    pyodide.runPythonAsync(`
+import json as _json
+_scheme = _json.loads('${schemeJson.replace(/'/g, "\\'")}')
+# patch all Cube instances created later by overriding __init__ defaults
+_CUSTOM_STICKERS = _scheme
+`).then(() => setStatus('ready', 'Schemat zastosowany'));
+  }
+}
+
+function resetScheme() {
+  currentScheme = {...DEFAULT_STICKERS};
+  for (const key of Object.keys(DEFAULT_STICKERS)) {
+    const inp = document.getElementById('sch-' + key);
+    if (inp) { inp.value = DEFAULT_STICKERS[key]; inp.classList.remove('changed'); }
+  }
+  ADV_OPTIONS['memo-e'] = genPairs(EDGE_LETTERS);
+  ADV_OPTIONS['memo-c'] = genPairs(CORNER_LETTERS);
+  ADV_OPTIONS['memo-ltct'] = CORNER_LETTERS.flatMap(a => CORNER_LETTERS.filter(b => b !== a).map(b => a + b.toLowerCase()));
+  if (pyReady) pyodide.runPythonAsync('_CUSTOM_STICKERS = None').then(() => setStatus('ready', 'Przywrócono domyślny schemat'));
+}
 
 // ── Advanced panel ─────────────────────────────────────────────────────────
 const EDGE_LETTERS = ['A','B','C','D','E','F','G','H','I','J','K','L','M','N','O','P','R','S','T','U','W','Z'];
@@ -1197,6 +1415,11 @@ async function runGenerate() {
   if (!pyReady) return;
 
   const n = parseInt(document.getElementById('nScrambles').value) || 10;
+  const scheme = {};
+  Object.keys(DEFAULT_STICKERS).forEach(k => {
+    const inp = document.getElementById('sch-' + k);
+    if (inp) scheme[k] = inp.value.trim().toUpperCase() || DEFAULT_STICKERS[k];
+  });
   const filters = {};
   FILTERS.forEach(f => {
     const s = state[f.id];
@@ -1303,11 +1526,14 @@ function copyAll() {
 function exportTxt() {
   const cards = document.querySelectorAll('.scramble-text');
   if (!cards.length) return;
-  const text = [...cards].map((c, i) => `${i+1}. ${c.textContent}`).join('\n');
+  const text = [...cards].map(c => c.textContent).join('\n');
   const blob = new Blob([text], { type: 'text/plain' });
+  const now = new Date();
+  const pad = n => String(n).padStart(2,'0');
+  const stamp = `${now.getFullYear()}-${pad(now.getMonth()+1)}-${pad(now.getDate())}_${pad(now.getHours())}-${pad(now.getMinutes())}-${pad(now.getSeconds())}`;
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
-  a.download = 'bld_scrambles.txt';
+  a.download = `bld_scrambles_${stamp}.txt`;
   a.click();
   URL.revokeObjectURL(a.href);
 }
@@ -1723,6 +1949,20 @@ sys.path.insert(0, '.')
 exec(open('cube_rings.py').read())
 exec(open('cube_moves.py').read())
 exec(open('cube.py').read())
+
+# Patch Cube to support custom scheme
+_orig_cube_init = Cube.__init__
+_CUSTOM_STICKERS = None
+
+def _patched_cube_init(self):
+    _orig_cube_init(self)
+    if _CUSTOM_STICKERS:
+        for k, v in _CUSTOM_STICKERS.items():
+            if k in self.stickers:
+                self.stickers[k] = v
+        self.group_by_type()
+
+Cube.__init__ = _patched_cube_init
 exec(open('solve.py').read())
 exec(open('main.py').read())
 
@@ -1756,7 +1996,7 @@ def generate_scrambles(n, filters_json, parity_filter=None, adv_json='{}'):
     from cube import Cube as _Cube
     solved_cube = _Cube()
     results = []
-    MAX_ATTEMPTS = 5000
+    MAX_ATTEMPTS = 50000
     attempts = 0
     while len(results) < n and attempts < n * MAX_ATTEMPTS:
         attempts += 1
@@ -1831,10 +2071,19 @@ function collectState() {
     adv,
     logic,
     advOpen: document.getElementById('advPanel').classList.contains('open'),
+    scheme,
   };
 }
 
 function applyState(data) {
+  // scheme
+  if (data.scheme) {
+    Object.keys(data.scheme).forEach(k => {
+      const inp = document.getElementById('sch-' + k);
+      if (inp) { inp.value = data.scheme[k]; onSchemeInput(inp); }
+    });
+    applyScheme();
+  }
   // numeric filters
   FILTERS.forEach(f => {
     if (!data.filters[f.id]) return;
