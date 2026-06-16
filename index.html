@@ -6,6 +6,7 @@
 <title>BLD Scramble Generator</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/pyodide/v0.26.4/full/pyodide.js"></script>
 <style>
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -1320,52 +1321,21 @@ function makeInput(f, val, onchange) {
   return inp;
 }
 
-// ── Web Worker pool ────────────────────────────────────────────────────────
+// ── Pyodide boot ───────────────────────────────────────────────────────────
 let pyReady = false;
-let workers = [];
-let workerReady = [];
-const NUM_WORKERS = Math.min(3, Math.max(1, (navigator.hardwareConcurrency || 4) - 2));
-
-const PY_FILES = {
-  'cube_rings.py': CUBE_RINGS,
-  'cube_moves.py': CUBE_MOVES,
-  'cube.py': CUBE_PY,
-  'solve.py': SOLVE_PY,
-  'main.py': MAIN_PY,
-};
 
 async function bootPyodide() {
-  setStatus('loading', `Ładowanie ${NUM_WORKERS} workerów…`);
-  workers = [];
-  workerReady = [];
-
-  const promises = Array.from({ length: NUM_WORKERS }, (_, i) => new Promise((resolve, reject) => {
-    const w = new Worker('worker.js');
-    workers.push(w);
-    workerReady.push(false);
-
-    w.onmessage = (e) => {
-      if (e.data.type === 'ready') {
-        workerReady[i] = true;
-        const readyCount = workerReady.filter(Boolean).length;
-        setStatus('loading', `Ładowanie workerów… ${readyCount}/${NUM_WORKERS}`);
-        if (workerReady.every(Boolean)) resolve();
-      }
-    };
-    w.onerror = (e) => reject(new Error(e.message));
-
-    w.postMessage({
-      type: 'init',
-      pyFiles: PY_FILES,
-      initCode: INIT_CODE,
-      customStickers: null,
-    });
-  }));
-
+  setStatus('loading', 'Ładowanie środowiska Python…');
   try {
-    await Promise.all(promises);
+    window.pyodide = await loadPyodide();
+    const files = { 'cube_rings.py': CUBE_RINGS, 'cube_moves.py': CUBE_MOVES, 'cube.py': CUBE_PY, 'solve.py': SOLVE_PY, 'main.py': MAIN_PY };
+    for (const [name, src] of Object.entries(files)) {
+      pyodide.FS.writeFile(name, src, { encoding: 'utf8' });
+    }
+    await pyodide.runPythonAsync(`import sys; sys.path.insert(0, '.')`);
+    await pyodide.runPythonAsync(INIT_CODE);
     pyReady = true;
-    setStatus('ready', `Gotowe — ${NUM_WORKERS} workerów aktywnych`);
+    setStatus('ready', 'Gotowe — środowisko Python załadowane');
     document.getElementById('generateBtn').disabled = false;
   } catch(e) {
     const msg = e.message || String(e);
@@ -1379,31 +1349,18 @@ async function bootPyodide() {
   }
 }
 
-// Restart workers with new custom stickers
 async function rebootWorkersWithScheme(customStickers) {
-  workers.forEach(w => w.terminate());
-  workers = [];
-  workerReady = [];
   pyReady = false;
   document.getElementById('generateBtn').disabled = true;
-  setStatus('loading', `Przeładowanie workerów ze schematem…`);
-
-  const promises = Array.from({ length: NUM_WORKERS }, (_, i) => new Promise((resolve) => {
-    const w = new Worker('worker.js');
-    workers.push(w);
-    workerReady.push(false);
-    w.onmessage = (e) => {
-      if (e.data.type === 'ready') {
-        workerReady[i] = true;
-        if (workerReady.every(Boolean)) resolve();
-      }
-    };
-    w.postMessage({ type: 'init', pyFiles: PY_FILES, initCode: INIT_CODE, customStickers });
-  }));
-
-  await Promise.all(promises);
+  setStatus('loading', 'Zastosowywanie schematu…');
+  if (customStickers) {
+    const s = JSON.stringify(customStickers).replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+    await pyodide.runPythonAsync(`import json as _j; _CUSTOM_STICKERS = _j.loads('${s}')`);
+  } else {
+    await pyodide.runPythonAsync('_CUSTOM_STICKERS = None');
+  }
   pyReady = true;
-  setStatus('ready', `Schemat zastosowany — ${NUM_WORKERS} workerów aktywnych`);
+  setStatus('ready', customStickers ? 'Schemat zastosowany' : 'Przywrócono domyślny schemat');
   document.getElementById('generateBtn').disabled = false;
 }
 
@@ -1461,13 +1418,7 @@ function getConflict() {
 
 // ── Generate ───────────────────────────────────────────────────────────────
 async function runGenerate() {
-  if (!pyReady) {
-    // Lazy boot on first generate click
-    document.getElementById('generateBtn').disabled = true;
-    document.getElementById('generateBtn').textContent = 'Ładowanie…';
-    await bootPyodide();
-    if (!pyReady) return; // boot failed
-  }
+  if (!pyReady) return;
 
   const n = parseInt(document.getElementById('nScrambles').value) || 10;
   const scheme = {};
@@ -2293,9 +2244,7 @@ function loadPreset(event) {
 
 buildFilters();
 buildTagInputs();
-setStatus('ready', 'Kliknij "Generuj" aby załadować środowisko i rozpocząć');
-document.getElementById('statusDot').className = 'status-dot ready';
-document.getElementById('generateBtn').disabled = false;
+bootPyodide();
 </script>
 </body>
 </html>
