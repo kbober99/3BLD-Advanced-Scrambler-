@@ -1,0 +1,1930 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BLD Scramble Generator</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/pyodide/v0.26.4/full/pyodide.js"></script>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg:        #0d0f14;
+    --surface:   #151820;
+    --border:    #232737;
+    --accent:    #7c6af7;
+    --accent2:   #4fd1c5;
+    --text:      #e8eaf0;
+    --muted:     #6b7280;
+    --error:     #f87171;
+    --success:   #4fd1c5;
+    --mono:      'JetBrains Mono', monospace;
+    --sans:      'Inter', sans-serif;
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+  }
+
+  header {
+    border-bottom: 1px solid var(--border);
+    padding: 1.5rem 2rem;
+    display: flex;
+    align-items: baseline;
+    gap: 1rem;
+  }
+
+  header h1 {
+    font-family: var(--mono);
+    font-size: 1.1rem;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    color: var(--accent);
+  }
+
+  header span {
+    font-size: 0.8rem;
+    color: var(--muted);
+    font-weight: 300;
+  }
+
+  .status-bar {
+    font-family: var(--mono);
+    font-size: 0.72rem;
+    padding: 0.45rem 2rem;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    color: var(--muted);
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    min-height: 2rem;
+  }
+
+  .status-dot {
+    width: 6px; height: 6px;
+    border-radius: 50%;
+    background: var(--muted);
+    flex-shrink: 0;
+    transition: background 0.3s;
+  }
+  .status-dot.loading { background: #f59e0b; animation: pulse 1s infinite; }
+  .status-dot.ready   { background: var(--success); }
+  .status-dot.error   { background: var(--error); }
+
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
+
+  main {
+    display: grid;
+    grid-template-columns: 480px 1fr;
+    flex: 1;
+    overflow: hidden;
+  }
+
+  /* ── PANEL ── */
+  .panel {
+    border-right: 1px solid var(--border);
+    padding: 1.5rem;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+  }
+
+  .section-label {
+    font-family: var(--mono);
+    font-size: 0.65rem;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--muted);
+    margin-bottom: 0.75rem;
+  }
+
+  .filter-group { display: flex; flex-direction: column; gap: 0.6rem; }
+
+  .filter-row {
+    display: grid;
+    grid-template-columns: 1fr auto auto;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  .filter-row label {
+    font-size: 0.82rem;
+    color: var(--text);
+    font-weight: 500;
+  }
+
+  .mode-toggle {
+    display: flex;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    overflow: hidden;
+    flex-shrink: 0;
+  }
+
+  .mode-toggle button {
+    background: transparent;
+    border: none;
+    color: var(--muted);
+    font-family: var(--mono);
+    font-size: 0.65rem;
+    padding: 0.25rem 0.5rem;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+
+  .mode-toggle button.active {
+    background: var(--accent);
+    color: #fff;
+  }
+
+  .inputs-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.4rem;
+    margin-top: 0.15rem;
+  }
+  .inputs-row.single { grid-template-columns: 1fr; }
+
+  input[type="number"] {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    color: var(--text);
+    font-family: var(--mono);
+    font-size: 0.82rem;
+    padding: 0.4rem 0.6rem;
+    border-radius: 4px;
+    width: 100%;
+    transition: border-color 0.15s;
+    -moz-appearance: textfield;
+  }
+  input[type="number"]::-webkit-outer-spin-button,
+  input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; }
+  input[type="number"]:focus { outline: none; border-color: var(--accent); }
+  input[type="number"]:disabled { opacity: 0.35; }
+
+  input[type="number"].placeholder::placeholder { color: var(--muted); }
+
+  .input-hint {
+    font-size: 0.65rem;
+    color: var(--muted);
+    font-family: var(--mono);
+    align-self: center;
+  }
+
+  .divider { border: none; border-top: 1px solid var(--border); }
+
+  .n-row {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    align-items: center;
+    gap: 0.75rem;
+  }
+
+  .n-row label { font-size: 0.82rem; font-weight: 500; }
+
+  .generate-btn {
+    width: 100%;
+    padding: 0.75rem;
+    background: var(--accent);
+    color: #fff;
+    border: none;
+    border-radius: 6px;
+    font-family: var(--mono);
+    font-size: 0.85rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    cursor: pointer;
+    transition: opacity 0.15s, transform 0.1s;
+  }
+
+  .generate-btn:hover:not(:disabled) { opacity: 0.88; }
+  .generate-btn:active:not(:disabled) { transform: scale(0.98); }
+  .generate-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+  .attempts-note {
+    font-size: 0.7rem;
+    color: var(--muted);
+    font-family: var(--mono);
+    text-align: center;
+  }
+
+  /* ── RESULTS ── */
+  .results-pane {
+    padding: 1.5rem;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+  }
+
+  .results-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+  }
+
+  .results-count {
+    font-family: var(--mono);
+    font-size: 0.75rem;
+    color: var(--muted);
+  }
+
+  .copy-all-btn {
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--muted);
+    font-family: var(--mono);
+    font-size: 0.7rem;
+    padding: 0.3rem 0.7rem;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  .copy-all-btn:hover { border-color: var(--accent2); color: var(--accent2); }
+
+  .empty-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    flex: 1;
+    gap: 0.75rem;
+    color: var(--muted);
+    padding: 4rem 0;
+  }
+
+  .empty-state .big { font-size: 2.5rem; opacity: 0.3; }
+  .empty-state p { font-size: 0.82rem; font-family: var(--mono); }
+
+  .scramble-list { display: flex; flex-direction: column; gap: 0.6rem; }
+
+  .scramble-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 0.9rem 1rem;
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 0.75rem;
+    align-items: start;
+    transition: border-color 0.15s;
+  }
+  .scramble-card:hover { border-color: #2e3347; }
+
+  .scramble-text {
+    font-family: var(--mono);
+    font-size: 0.88rem;
+    font-weight: 600;
+    letter-spacing: 0.03em;
+    color: var(--text);
+    word-break: break-all;
+    line-height: 1.5;
+  }
+
+  .scramble-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.3rem;
+    margin-top: 0.5rem;
+  }
+
+  .tag {
+    font-family: var(--mono);
+    font-size: 0.62rem;
+    padding: 0.15rem 0.45rem;
+    border-radius: 3px;
+    border: 1px solid transparent;
+  }
+  .tag-e  { border-color: #7c6af755; color: #a79cf9; background: #7c6af710; }
+  .tag-c  { border-color: #4fd1c555; color: #4fd1c5; background: #4fd1c510; }
+  .tag-fl { border-color: #f59e0b55; color: #fbbf24; background: #f59e0b10; }
+  .tag-br { border-color: #f8717155; color: #f87171; background: #f8717110; }
+  .tag-sl { border-color: #6b728055; color: #9ca3af; background: #6b728010; }
+
+  .copy-btn {
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--muted);
+    font-family: var(--mono);
+    font-size: 0.65rem;
+    padding: 0.25rem 0.55rem;
+    border-radius: 4px;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: all 0.15s;
+    flex-shrink: 0;
+  }
+  .copy-btn:hover { border-color: var(--accent2); color: var(--accent2); }
+  .copy-btn.copied { border-color: var(--success); color: var(--success); }
+
+  .progress-bar {
+    height: 2px;
+    background: var(--border);
+    border-radius: 1px;
+    overflow: hidden;
+  }
+  .progress-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--accent), var(--accent2));
+    border-radius: 1px;
+    transition: width 0.2s;
+    width: 0%;
+  }
+
+  .error-msg {
+    background: #f8717115;
+    border: 1px solid #f8717155;
+    border-radius: 6px;
+    padding: 0.75rem 1rem;
+    font-family: var(--mono);
+    font-size: 0.78rem;
+    color: var(--error);
+  }
+
+  @media (max-width: 700px) {
+    main { grid-template-columns: 1fr; }
+    .panel { border-right: none; border-bottom: 1px solid var(--border); }
+  }
+
+  .conflict-msg {
+    background: #f59e0b18;
+    border: 1px solid #f59e0b66;
+    border-radius: 6px;
+    padding: 0.6rem 0.85rem;
+    font-family: var(--mono);
+    font-size: 0.75rem;
+    color: #fbbf24;
+    display: none;
+    margin-top: 0.5rem;
+    line-height: 1.5;
+  }
+
+  .advanced-toggle {
+    background: transparent;
+    border: none;
+    color: var(--muted);
+    font-family: var(--mono);
+    font-size: 0.72rem;
+    cursor: pointer;
+    padding: 0;
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    transition: color 0.15s;
+    width: 100%;
+    text-align: left;
+  }
+  .advanced-toggle:hover { color: var(--text); }
+  .advanced-toggle .arrow { transition: transform 0.2s; display: inline-block; }
+  .advanced-toggle.open .arrow { transform: rotate(90deg); }
+
+  .advanced-panel {
+    display: none;
+    flex-direction: column;
+    gap: 0.75rem;
+    padding-top: 0.75rem;
+  }
+  .advanced-panel.open { display: flex; }
+
+  .adv-row { display: flex; flex-direction: column; gap: 0.3rem; }
+  .adv-row-label { font-size: 0.65rem; font-family: var(--mono); color: var(--muted); text-transform: uppercase; letter-spacing: 0.07em; }
+
+  .tag-input-wrap {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.3rem;
+    align-items: center;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 5px;
+    padding: 0.35rem 0.5rem;
+    min-height: 2.2rem;
+    cursor: text;
+    transition: border-color 0.15s;
+  }
+  .tag-input-wrap:focus-within { border-color: var(--accent); }
+
+  .tag-item {
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+    background: #7c6af720;
+    border: 1px solid var(--accent);
+    color: var(--accent);
+    font-family: var(--mono);
+    font-size: 0.7rem;
+    padding: 0.1rem 0.4rem;
+    border-radius: 3px;
+  }
+  .tag-item button {
+    background: none;
+    border: none;
+    color: var(--accent);
+    cursor: pointer;
+    font-size: 0.7rem;
+    padding: 0;
+    line-height: 1;
+    opacity: 0.7;
+  }
+  .tag-item button:hover { opacity: 1; }
+
+  .tag-text-input {
+    background: transparent;
+    border: none;
+    outline: none;
+    color: var(--text);
+    font-family: var(--mono);
+    font-size: 0.78rem;
+    width: 60px;
+    min-width: 40px;
+  }
+
+  .tag-dropdown {
+    position: absolute;
+    background: var(--surface);
+    border: 1px solid var(--accent);
+    border-radius: 5px;
+    margin-top: 0.2rem;
+    z-index: 100;
+    overflow: hidden;
+    box-shadow: 0 4px 16px #00000044;
+    max-height: 180px;
+    overflow-y: auto;
+  }
+  .tag-dropdown-item {
+    font-family: var(--mono);
+    font-size: 0.78rem;
+    padding: 0.35rem 0.75rem;
+    cursor: pointer;
+    color: var(--muted);
+    transition: background 0.1s, color 0.1s;
+  }
+  .tag-dropdown-item:hover, .tag-dropdown-item.active {
+    background: #7c6af720;
+    color: var(--text);
+  }
+  .tag-input-container { position: relative; }
+
+  .logic-toggle {
+    display: flex;
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    overflow: hidden;
+    flex-shrink: 0;
+  }
+  .logic-toggle button {
+    background: transparent;
+    border: none;
+    color: var(--muted);
+    font-family: var(--mono);
+    font-size: 0.6rem;
+    padding: 0.15rem 0.4rem;
+    cursor: pointer;
+    transition: all 0.15s;
+    line-height: 1;
+  }
+  .logic-toggle button.active-and { background: var(--accent); color: #fff; }
+  .logic-toggle button.active-or  { background: var(--accent2); color: #0d0f14; }
+
+  .import-btn {
+    background: transparent;
+    border: none;
+    color: var(--muted);
+    font-family: var(--mono);
+    font-size: 0.6rem;
+    cursor: pointer;
+    padding: 0.15rem 0.3rem;
+    border-radius: 3px;
+    transition: color 0.15s;
+    line-height: 1;
+    flex-shrink: 0;
+  }
+  .import-btn:hover { color: var(--accent2); }
+
+  .header-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-left: auto;
+  }
+  .header-btn {
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--muted);
+    font-family: var(--mono);
+    font-size: 0.7rem;
+    padding: 0.3rem 0.7rem;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: all 0.15s;
+    white-space: nowrap;
+  }
+  .header-btn:hover { border-color: var(--accent2); color: var(--accent2); }
+  .header-btn.save { border-color: var(--accent); color: var(--accent); }
+  .header-btn.save:hover { background: #7c6af720; }
+
+  .preset-modal {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: #00000080;
+    z-index: 1000;
+    align-items: center;
+    justify-content: center;
+  }
+  .preset-modal.open { display: flex; }
+  .preset-box {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 1.5rem;
+    width: 340px;
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+  }
+  .preset-box h3 {
+    font-family: var(--mono);
+    font-size: 0.85rem;
+    color: var(--text);
+    font-weight: 700;
+  }
+  .preset-name-input {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    color: var(--text);
+    font-family: var(--mono);
+    font-size: 0.82rem;
+    padding: 0.45rem 0.7rem;
+    border-radius: 4px;
+    width: 100%;
+  }
+  .preset-name-input:focus { outline: none; border-color: var(--accent); }
+  .preset-modal-actions {
+    display: flex;
+    gap: 0.5rem;
+    justify-content: flex-end;
+  }
+  .preset-modal-actions button {
+    font-family: var(--mono);
+    font-size: 0.75rem;
+    padding: 0.35rem 0.8rem;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  .btn-cancel { background: transparent; border: 1px solid var(--border); color: var(--muted); }
+  .btn-cancel:hover { border-color: var(--error); color: var(--error); }
+  .btn-confirm { background: var(--accent); border: 1px solid var(--accent); color: #fff; }
+  .btn-confirm:hover { opacity: 0.85; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>BLD Scrambles Generator</h1>
+  <div class="header-actions">
+    <button class="header-btn save" onclick="savePreset()">💾 Zapisz preset</button>
+    <button class="header-btn" onclick="triggerLoadPreset()">📂 Wczytaj preset</button>
+    <input type="file" id="presetFileInput" accept=".json" style="display:none" onchange="loadPreset(event)">
+  </div>
+</header>
+
+<div class="status-bar">
+  <div class="status-dot loading" id="statusDot"></div>
+  <span id="statusText">Ładowanie środowiska Python…</span>
+</div>
+
+<main>
+  <!-- ── PANEL FILTRÓW ── -->
+  <aside class="panel">
+    <div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:0 1.25rem">
+        <div class="section-label" style="grid-column:1">Krawędzie</div>
+        <div class="section-label" style="grid-column:2">Rogi</div>
+        <div class="filter-group" id="filterGroupEdge" style="grid-column:1"></div>
+        <div class="filter-group" id="filterGroupCorner" style="grid-column:2"></div>
+      </div>
+      <div style="margin-top:0.75rem">
+        <div class="section-label">Pozostałe</div>
+        <div class="filter-group" id="filterGroupExtra" style="display:none"></div>
+        <div id="parityContainer"></div>
+      </div>
+    </div>
+
+    <hr class="divider">
+
+    <div>
+      <div class="section-label">Liczba scrambli</div>
+      <div class="n-row">
+        <label>Ile generować?</label>
+        <input type="number" id="nScrambles" value="10" min="1" max="200" style="width:70px">
+      </div>
+      <p class="attempts-note" style="margin-top:0.6rem">maks. 5000 prób na scramble</p>
+    </div>
+
+
+    <hr class="divider">
+
+    <div>
+      <button class="advanced-toggle" id="advToggle" onclick="toggleAdvanced()">
+        <span class="arrow">▶</span> zaawansowane metadane scrambla
+      </button>
+      <div class="advanced-panel" id="advPanel">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:0 1.25rem">
+          <div class="section-label" style="grid-column:1">Krawędzie</div>
+          <div class="section-label" style="grid-column:2">Rogi</div>
+          <div style="grid-column:1;display:flex;flex-direction:column;gap:0.5rem">
+          <div class="adv-row">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.2rem">
+              <div class="adv-row-label" style="margin-bottom:0">Flipnięte</div>
+              <div style="display:flex;align-items:center;gap:0.3rem"><div class="logic-toggle" id="logic-flipped-e">
+                <button onclick="setLogic('flipped-e','or')" class="active-or">OR</button>
+                <button onclick="setLogic('flipped-e','and')">AND</button>
+              </div><button class="import-btn" title="Importuj z .txt" onclick="triggerImport('flipped-e')">📂</button></div>
+            </div>
+            <div class="tag-input-container">
+              <div class="tag-input-wrap" id="wrap-flipped-e" onclick="focusTagInput('flipped-e')"></div>
+              <div class="tag-dropdown" id="drop-flipped-e" style="display:none"></div>
+            </div>
+          </div>
+          <div class="adv-row">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.2rem">
+              <div class="adv-row-label" style="margin-bottom:0">Ułożone</div>
+              <div style="display:flex;align-items:center;gap:0.3rem"><div class="logic-toggle" id="logic-solved-e">
+                <button onclick="setLogic('solved-e','or')" class="active-or">OR</button>
+                <button onclick="setLogic('solved-e','and')">AND</button>
+              </div><button class="import-btn" title="Importuj z .txt" onclick="triggerImport('solved-e')">📂</button></div>
+            </div>
+            <div class="tag-input-container">
+              <div class="tag-input-wrap" id="wrap-solved-e" onclick="focusTagInput('solved-e')"></div>
+              <div class="tag-dropdown" id="drop-solved-e" style="display:none"></div>
+            </div>
+          </div>
+          <div class="adv-row">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.2rem">
+              <div class="adv-row-label" style="margin-bottom:0">Pary memo</div>
+              <div style="display:flex;align-items:center;gap:0.3rem"><div class="logic-toggle" id="logic-memo-e">
+                <button onclick="setLogic('memo-e','or')" class="active-or">OR</button>
+                <button onclick="setLogic('memo-e','and')">AND</button>
+              </div><button class="import-btn" title="Importuj z .txt" onclick="triggerImport('memo-e')">📂</button></div>
+            </div>
+            <div class="tag-input-container">
+              <div class="tag-input-wrap" id="wrap-memo-e" onclick="focusTagInput('memo-e')"></div>
+              <div class="tag-dropdown" id="drop-memo-e" style="display:none"></div>
+            </div>
+          </div>
+          </div>
+          <div style="grid-column:2;display:flex;flex-direction:column;gap:0.5rem">
+          <div class="adv-row">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.2rem">
+              <div class="adv-row-label" style="margin-bottom:0">Obrócone</div>
+              <div style="display:flex;align-items:center;gap:0.3rem"><div class="logic-toggle" id="logic-twisted-c">
+                <button onclick="setLogic('twisted-c','or')" class="active-or">OR</button>
+                <button onclick="setLogic('twisted-c','and')">AND</button>
+              </div><button class="import-btn" title="Importuj z .txt" onclick="triggerImport('twisted-c')">📂</button></div>
+            </div>
+            <div class="tag-input-container">
+              <div class="tag-input-wrap" id="wrap-twisted-c" onclick="focusTagInput('twisted-c')"></div>
+              <div class="tag-dropdown" id="drop-twisted-c" style="display:none"></div>
+            </div>
+          </div>
+          <div class="adv-row">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.2rem">
+              <div class="adv-row-label" style="margin-bottom:0">Ułożone</div>
+              <div style="display:flex;align-items:center;gap:0.3rem"><div class="logic-toggle" id="logic-solved-c">
+                <button onclick="setLogic('solved-c','or')" class="active-or">OR</button>
+                <button onclick="setLogic('solved-c','and')">AND</button>
+              </div><button class="import-btn" title="Importuj z .txt" onclick="triggerImport('solved-c')">📂</button></div>
+            </div>
+            <div class="tag-input-container">
+              <div class="tag-input-wrap" id="wrap-solved-c" onclick="focusTagInput('solved-c')"></div>
+              <div class="tag-dropdown" id="drop-solved-c" style="display:none"></div>
+            </div>
+          </div>
+          <div class="adv-row">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.2rem">
+              <div class="adv-row-label" style="margin-bottom:0">Pary memo</div>
+              <div style="display:flex;align-items:center;gap:0.3rem"><div class="logic-toggle" id="logic-memo-c">
+                <button onclick="setLogic('memo-c','or')" class="active-or">OR</button>
+                <button onclick="setLogic('memo-c','and')">AND</button>
+              </div><button class="import-btn" title="Importuj z .txt" onclick="triggerImport('memo-c')">📂</button></div>
+            </div>
+            <div class="tag-input-container">
+              <div class="tag-input-wrap" id="wrap-memo-c" onclick="focusTagInput('memo-c')"></div>
+              <div class="tag-dropdown" id="drop-memo-c" style="display:none"></div>
+            </div>
+          </div>
+          <div class="adv-row">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.2rem">
+              <div class="adv-row-label" style="margin-bottom:0">LTCT</div>
+              <div style="display:flex;align-items:center;gap:0.3rem"><div class="logic-toggle" id="logic-memo-ltct">
+                <button onclick="setLogic('memo-ltct','or')" class="active-or">OR</button>
+                <button onclick="setLogic('memo-ltct','and')">AND</button>
+              </div><button class="import-btn" title="Importuj z .txt" onclick="triggerImport('memo-ltct')">📂</button></div>
+            </div>
+            <div class="tag-input-container">
+              <div class="tag-input-wrap" id="wrap-memo-ltct" onclick="focusTagInput('memo-ltct')"></div>
+              <div class="tag-dropdown" id="drop-memo-ltct" style="display:none"></div>
+            </div>
+          </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <hr class="divider">
+
+    <div class="conflict-msg" id="conflictMsg"></div>
+    <button class="generate-btn" id="generateBtn" disabled onclick="runGenerate()">
+      Generuj
+    </button>
+  </aside>
+
+  <!-- ── WYNIKI ── -->
+  <section class="results-pane" id="resultsPane">
+    <div class="empty-state" id="emptyState">
+      <div class="big">⚄</div>
+      <p>Ustaw filtry i kliknij "Generuj"</p>
+    </div>
+  </section>
+
+<div class="preset-modal" id="presetModal">
+  <div class="preset-box">
+    <h3>Zapisz preset</h3>
+    <input class="preset-name-input" id="presetNameInput" type="text" placeholder="Nazwa presetu…" onkeydown="if(event.key==='Enter')confirmSavePreset()">
+    <div class="preset-modal-actions">
+      <button class="btn-cancel" onclick="closePresetModal()">Anuluj</button>
+      <button class="btn-confirm" onclick="confirmSavePreset()">Zapisz</button>
+    </div>
+  </div>
+</div>
+  <input type="file" id="importFileInput" accept=".txt" style="display:none" onchange="handleImport(event)">
+</main>
+
+<script>
+// ── Filter definitions ──────────────────────────────────────────────────────
+// FILTERS_EDGE and FILTERS_CORNER for two-column layout
+const FILTERS_EDGE = [
+  { id: 'edges',    label: 'Targets',      min: 0, max: 14, step: 1 },
+  { id: 'flips',    label: 'Flipy',        min: 0, max: 11, step: 1 },
+  { id: 'breaks_e', label: 'Cycle breaki', min: 0, max: 6,  step: 1 },
+  { id: 'solved_e', label: 'Solved',       min: 0, max: 11, step: 1 },
+];
+const FILTERS_CORNER = [
+  { id: 'corners',  label: 'Targets',      min: 0, max: 12, step: 1 },
+  { id: 'twists',   label: 'Twisty',       min: 0, max: 7,  step: 1 },
+  { id: 'breaks_c', label: 'Cycle breaki', min: 0, max: 6,  step: 1 },
+  { id: 'solved_c', label: 'Solved',       min: 0, max: 8,  step: 1 },
+];
+const FILTERS_EXTRA = [];
+const FILTERS = [...FILTERS_EDGE, ...FILTERS_CORNER, ...FILTERS_EXTRA];
+
+// state: mode = 'any' | 'exact' | 'range'
+const state = {};
+FILTERS.forEach(f => { state[f.id] = { mode: 'any', exact: '', min: '', max: '' }; });
+
+// parity state: 'any' | true | false
+let parityState = 'any';
+
+
+// ── Advanced panel ─────────────────────────────────────────────────────────
+const EDGE_LETTERS = ['A','B','C','D','E','F','G','H','I','J','K','L','M','N','O','P','R','S','T','U','W','Z'];
+const CORNER_LETTERS = ['A','B','C','D','E','F','G','H','I','J','K','M','N','O','P','R','S','T','U','W','Z'];
+
+function genPairs(letters) {
+  const pairs = [];
+  for (const a of letters) for (const b of letters) if (a !== b) pairs.push(a+b);
+  return pairs;
+}
+
+const ADV_OPTIONS = {
+  'flipped-e': ['UB','UL','UR','DF','DL','DB','DR','FR','FL','BR','BL'],
+  'twisted-c': ['UBR','UBL','UFL','UFR','DBR','DBL','DFL','DFR'],
+  'solved-e':  ['UB','UL','UR','DF','DL','DB','DR','FR','FL','BR','BL'],
+  'solved-c':  ['UBR','UBL','UFL','UFR','DBR','DBL','DFL','DFR'],
+  'memo-e':    genPairs(EDGE_LETTERS),
+  'memo-c':    genPairs(CORNER_LETTERS),
+  'memo-ltct': ["Ab", "Ac", "Ad", "Ae", "Af", "Ag", "Ah", "Ai", "Aj", "Ak", "Am", "An", "Ao", "Ap", "Ar", "As", "At", "Au", "Aw", "Az", "Ba", "Bc", "Bd", "Be", "Bf", "Bg", "Bh", "Bi", "Bj", "Bk", "Bm", "Bn", "Bo", "Bp", "Br", "Bs", "Bt", "Bu", "Bw", "Bz", "Ca", "Cb", "Cd", "Ce", "Cf", "Cg", "Ch", "Ci", "Cj", "Ck", "Cm", "Cn", "Co", "Cp", "Cr", "Cs", "Ct", "Cu", "Cw", "Cz", "Da", "Db", "Dc", "De", "Df", "Dg", "Dh", "Di", "Dj", "Dk", "Dm", "Dn", "Do", "Dp", "Dr", "Ds", "Dt", "Du", "Dw", "Dz", "Ea", "Eb", "Ec", "Ed", "Ef", "Eg", "Eh", "Ei", "Ej", "Ek", "Em", "En", "Eo", "Ep", "Er", "Es", "Et", "Eu", "Ew", "Ez", "Fa", "Fb", "Fc", "Fd", "Fe", "Fg", "Fh", "Fi", "Fj", "Fk", "Fm", "Fn", "Fo", "Fp", "Fr", "Fs", "Ft", "Fu", "Fw", "Fz", "Ga", "Gb", "Gc", "Gd", "Ge", "Gf", "Gh", "Gi", "Gj", "Gk", "Gm", "Gn", "Go", "Gp", "Gr", "Gs", "Gt", "Gu", "Gw", "Gz", "Ha", "Hb", "Hc", "Hd", "He", "Hf", "Hg", "Hi", "Hj", "Hk", "Hm", "Hn", "Ho", "Hp", "Hr", "Hs", "Ht", "Hu", "Hw", "Hz", "Ia", "Ib", "Ic", "Id", "Ie", "If", "Ig", "Ih", "Ij", "Ik", "Im", "In", "Io", "Ip", "Ir", "Is", "It", "Iu", "Iw", "Iz", "Ja", "Jb", "Jc", "Jd", "Je", "Jf", "Jg", "Jh", "Ji", "Jk", "Jm", "Jn", "Jo", "Jp", "Jr", "Js", "Jt", "Ju", "Jw", "Jz", "Ka", "Kb", "Kc", "Kd", "Ke", "Kf", "Kg", "Kh", "Ki", "Kj", "Km", "Kn", "Ko", "Kp", "Kr", "Ks", "Kt", "Ku", "Kw", "Kz", "Ma", "Mb", "Mc", "Md", "Me", "Mf", "Mg", "Mh", "Mi", "Mj", "Mk", "Mn", "Mo", "Mp", "Mr", "Ms", "Mt", "Mu", "Mw", "Mz", "Na", "Nb", "Nc", "Nd", "Ne", "Nf", "Ng", "Nh", "Ni", "Nj", "Nk", "Nm", "No", "Np", "Nr", "Ns", "Nt", "Nu", "Nw", "Nz", "Oa", "Ob", "Oc", "Od", "Oe", "Of", "Og", "Oh", "Oi", "Oj", "Ok", "Om", "On", "Op", "Or", "Os", "Ot", "Ou", "Ow", "Oz", "Pa", "Pb", "Pc", "Pd", "Pe", "Pf", "Pg", "Ph", "Pi", "Pj", "Pk", "Pm", "Pn", "Po", "Pr", "Ps", "Pt", "Pu", "Pw", "Pz", "Ra", "Rb", "Rc", "Rd", "Re", "Rf", "Rg", "Rh", "Ri", "Rj", "Rk", "Rm", "Rn", "Ro", "Rp", "Rs", "Rt", "Ru", "Rw", "Rz", "Sa", "Sb", "Sc", "Sd", "Se", "Sf", "Sg", "Sh", "Si", "Sj", "Sk", "Sm", "Sn", "So", "Sp", "Sr", "St", "Su", "Sw", "Sz", "Ta", "Tb", "Tc", "Td", "Te", "Tf", "Tg", "Th", "Ti", "Tj", "Tk", "Tm", "Tn", "To", "Tp", "Tr", "Ts", "Tu", "Tw", "Tz", "Ua", "Ub", "Uc", "Ud", "Ue", "Uf", "Ug", "Uh", "Ui", "Uj", "Uk", "Um", "Un", "Uo", "Up", "Ur", "Us", "Ut", "Uw", "Uz", "Wa", "Wb", "Wc", "Wd", "We", "Wf", "Wg", "Wh", "Wi", "Wj", "Wk", "Wm", "Wn", "Wo", "Wp", "Wr", "Ws", "Wt", "Wu", "Wz", "Za", "Zb", "Zc", "Zd", "Ze", "Zf", "Zg", "Zh", "Zi", "Zj", "Zk", "Zm", "Zn", "Zo", "Zp", "Zr", "Zs", "Zt", "Zu", "Zw"],
+};
+const advSelected = {
+  'flipped-e': new Set(),
+  'twisted-c': new Set(),
+  'solved-e':  new Set(),
+  'solved-c':  new Set(),
+  'memo-e':    new Set(),
+  'memo-c':    new Set(),
+  'memo-ltct': new Set(),
+};
+// 'and' = koniunkcja (wszystkie), 'or' = alternatywa (którykolwiek)
+const advLogic = {
+  'flipped-e': 'or',
+  'twisted-c': 'or',
+  'solved-e':  'or',
+  'solved-c':  'or',
+  'memo-e':    'or',
+  'memo-c':    'or',
+  'memo-ltct': 'or',
+};
+
+let _importTargetId = null;
+
+function triggerImport(id) {
+  _importTargetId = id;
+  const input = document.getElementById('importFileInput');
+  input.value = '';
+  input.click();
+}
+
+function handleImport(event) {
+  const file = event.target.files[0];
+  if (!file || !_importTargetId) return;
+  const id = _importTargetId;
+  const reader = new FileReader();
+  reader.onload = e => {
+    const lines = e.target.result.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+    const valid = ADV_OPTIONS[id];
+    let added = 0, skipped = 0;
+    lines.forEach(val => {
+      if (valid.includes(val) && !advSelected[id].has(val)) {
+        addTag(id, val);
+        added++;
+      } else if (!valid.includes(val)) {
+        skipped++;
+      }
+    });
+    if (skipped > 0) {
+      setStatus('loading', `Zaimportowano ${added} elementów, pominięto ${skipped} nieznanych`);
+      setTimeout(() => setStatus('ready', 'Gotowe'), 3000);
+    }
+  };
+  reader.readAsText(file);
+}
+
+function setLogic(id, mode) {
+  advLogic[id] = mode;
+  const toggle = document.getElementById('logic-' + id);
+  toggle.querySelectorAll('button').forEach(b => {
+    b.classList.remove('active-and', 'active-or');
+  });
+  toggle.querySelector(mode === 'and' ? 'button:last-child' : 'button:first-child')
+    .classList.add(mode === 'and' ? 'active-and' : 'active-or');
+}
+
+function buildTagInputs() {
+  Object.keys(ADV_OPTIONS).forEach(id => buildTagInput(id));
+}
+
+function buildTagInput(id) {
+  const wrap = document.getElementById('wrap-' + id);
+  const input = document.createElement('input');
+  input.type = 'text';
+  input.className = 'tag-text-input';
+  input.placeholder = 'szukaj…';
+  input.dataset.id = id;
+  input.addEventListener('input', () => updateDropdown(id, input.value));
+  input.addEventListener('keydown', e => onTagKeydown(e, id, input));
+  input.addEventListener('focus', () => updateDropdown(id, input.value));
+  input.addEventListener('blur', () => setTimeout(() => hideDropdown(id), 150));
+  wrap.appendChild(input);
+}
+
+function focusTagInput(id) {
+  document.querySelector(`#wrap-${id} .tag-text-input`).focus();
+}
+
+function updateDropdown(id, query) {
+  const drop = document.getElementById('drop-' + id);
+  const opts = ADV_OPTIONS[id].filter(o =>
+    o.toLowerCase().includes(query.toLowerCase()) && !advSelected[id].has(o)
+  );
+  if (!opts.length) { drop.style.display = 'none'; return; }
+  drop.innerHTML = '';
+  opts.forEach((o, i) => {
+    const item = document.createElement('div');
+    item.className = 'tag-dropdown-item' + (i === 0 ? ' active' : '');
+    item.textContent = o;
+    item.onmousedown = () => addTag(id, o);
+    drop.appendChild(item);
+  });
+  drop.style.display = 'block';
+}
+
+function hideDropdown(id) {
+  document.getElementById('drop-' + id).style.display = 'none';
+}
+
+function addTag(id, value) {
+  if (advSelected[id].has(value)) return;
+  advSelected[id].add(value);
+  const wrap = document.getElementById('wrap-' + id);
+  const input = wrap.querySelector('.tag-text-input');
+  const tag = document.createElement('span');
+  tag.className = 'tag-item';
+  tag.innerHTML = `${value}<button onclick="removeTag('${id}','${value}',this.parentElement)">×</button>`;
+  wrap.insertBefore(tag, input);
+  input.value = '';
+  hideDropdown(id);
+  updateBreaksNotes();
+}
+
+function removeTag(id, value, el) {
+  advSelected[id].delete(value);
+  el.remove();
+  updateBreaksNotes();
+}
+
+function updateBreaksNotes() {
+  const noteE = document.getElementById('memo-note-breaks_e');
+  const noteC = document.getElementById('memo-note-breaks_c');
+  if (noteE) noteE.style.display = advSelected['memo-e'].size > 0 ? 'block' : 'none';
+  if (noteC) noteC.style.display = (advSelected['memo-c'].size > 0 || advSelected['memo-ltct'].size > 0) ? 'block' : 'none';
+}
+
+function onTagKeydown(e, id, input) {
+  const drop = document.getElementById('drop-' + id);
+  const items = drop.querySelectorAll('.tag-dropdown-item');
+  const active = drop.querySelector('.active');
+  if (e.key === 'Enter' && active) { addTag(id, active.textContent); e.preventDefault(); }
+  else if (e.key === 'Escape') { hideDropdown(id); }
+  else if (e.key === 'ArrowDown') {
+    if (active && active.nextSibling) { active.classList.remove('active'); active.nextSibling.classList.add('active'); }
+    e.preventDefault();
+  } else if (e.key === 'ArrowUp') {
+    if (active && active.previousSibling) { active.classList.remove('active'); active.previousSibling.classList.add('active'); }
+    e.preventDefault();
+  } else if (e.key === 'Backspace' && !input.value) {
+    const tags = document.querySelectorAll(`#wrap-${id} .tag-item`);
+    if (tags.length) { const last = tags[tags.length-1]; const val = last.textContent.slice(0,-1); removeTag(id, val, last); }
+  }
+}
+
+function toggleAdvanced() {
+  const btn = document.getElementById('advToggle');
+  const panel = document.getElementById('advPanel');
+  btn.classList.toggle('open');
+  panel.classList.toggle('open');
+}
+
+// ── Build filter UI ─────────────────────────────────────────────────────────
+function buildFilterSet(filters, containerId) {
+  const container = document.getElementById(containerId);
+  filters.forEach(f => {
+    const s = state[f.id];
+
+    const wrap = document.createElement('div');
+    wrap.style.cssText = 'display:flex;flex-direction:column;gap:0.3rem;padding:0.6rem 0;border-bottom:1px solid var(--border)';
+
+    // top row: label + mode toggle
+    const top = document.createElement('div');
+    top.style.cssText = 'display:flex;align-items:center;justify-content:space-between;gap:0.5rem';
+
+    const lbl = document.createElement('label');
+    lbl.textContent = f.label;
+    lbl.style.cssText = 'font-size:0.82rem;font-weight:500';
+
+    const toggle = document.createElement('div');
+    toggle.className = 'mode-toggle';
+    ['dowolnie','=','min–max'].forEach((t, i) => {
+      const modes = ['any','exact','range'];
+      const btn = document.createElement('button');
+      btn.textContent = t;
+      btn.dataset.mode = modes[i];
+      if (modes[i] === s.mode) btn.classList.add('active');
+      btn.onclick = () => {
+        s.mode = modes[i];
+        toggle.querySelectorAll('button').forEach(b => b.classList.toggle('active', b.dataset.mode === s.mode));
+        updateInputs(inputWrap, f, s);
+      };
+      toggle.appendChild(btn);
+    });
+
+    top.appendChild(lbl);
+    top.appendChild(toggle);
+
+    // inputs
+    const inputWrap = document.createElement('div');
+    inputWrap.dataset.filterId = f.id;
+    updateInputs(inputWrap, f, s);
+
+    wrap.appendChild(top);
+    wrap.appendChild(inputWrap);
+    container.appendChild(wrap);
+  });
+}
+
+function buildFilters() {
+  buildFilterSet(FILTERS_EDGE, 'filterGroupEdge');
+  buildFilterSet(FILTERS_CORNER, 'filterGroupCorner');
+  buildFilterSet(FILTERS_EXTRA, 'filterGroupExtra');
+
+  // inject memo-override notes into breaks filter rows
+  ['breaks_e','breaks_c'].forEach(id => {
+    const container = id === 'breaks_e'
+      ? document.getElementById('filterGroupEdge')
+      : document.getElementById('filterGroupCorner');
+    const wraps = container.querySelectorAll('[style*="flex-direction:column"]');
+    wraps.forEach(wrap => {
+      // find the label inside
+      const lbl = wrap.querySelector('label');
+      if (lbl && lbl.textContent.trim() === 'Cycle breaki') {
+        const note = document.createElement('div');
+        note.id = 'memo-note-' + id;
+        note.style.cssText = 'display:none;font-family:var(--mono);font-size:0.62rem;color:var(--accent2);margin-top:0.2rem';
+        note.textContent = '⟶ wymuszone: 0 (pary memo)';
+        wrap.appendChild(note);
+      }
+    });
+  });
+
+  // parity bool filter — appended to extra
+  const container = document.getElementById('parityContainer');
+  const parityWrap = document.createElement('div');
+  parityWrap.style.cssText = 'display:flex;flex-direction:column;gap:0.3rem;padding:0.6rem 0;';
+  const parityTop = document.createElement('div');
+  parityTop.style.cssText = 'display:flex;align-items:center;justify-content:space-between;gap:0.5rem';
+  const parityLbl = document.createElement('label');
+  parityLbl.textContent = 'Parity';
+  parityLbl.style.cssText = 'font-size:0.82rem;font-weight:500';
+  const parityToggle = document.createElement('div');
+  parityToggle.className = 'mode-toggle';
+  [['dowolnie','any'],['False',false],['True',true]].forEach(([label, val]) => {
+    const btn = document.createElement('button');
+    btn.textContent = label;
+    btn.style.minWidth = '52px';
+    if (parityState === val) btn.classList.add('active');
+    btn.onclick = () => {
+      parityState = val;
+      parityToggle.querySelectorAll('button').forEach(b => b.classList.toggle('active', b.textContent === label));
+      validateFilters();
+    };
+    parityToggle.appendChild(btn);
+  });
+  parityTop.appendChild(parityLbl);
+  parityTop.appendChild(parityToggle);
+  parityWrap.appendChild(parityTop);
+  container.appendChild(parityWrap);
+}
+
+function updateInputs(wrap, f, s) {
+  wrap.innerHTML = '';
+  if (s.mode === 'any') return;
+
+  const row = document.createElement('div');
+  if (s.mode === 'exact') {
+    row.className = 'inputs-row single';
+    const inp = makeInput(f, s.exact, v => { s.exact = v; });
+    inp.placeholder = 'dokładna wartość';
+    row.appendChild(inp);
+  } else {
+    row.className = 'inputs-row';
+    const inpMin = makeInput(f, s.min, v => { s.min = v; });
+    inpMin.placeholder = 'min';
+    const inpMax = makeInput(f, s.max, v => { s.max = v; });
+    inpMax.placeholder = 'maks';
+    row.appendChild(inpMin);
+    row.appendChild(inpMax);
+  }
+  wrap.appendChild(row);
+}
+
+function makeInput(f, val, onchange) {
+  const inp = document.createElement('input');
+  inp.type = 'number';
+  inp.min = f.min; inp.max = f.max; inp.step = f.step;
+  inp.value = val;
+  inp.oninput = () => { onchange(inp.value === '' ? '' : Number(inp.value)); validateFilters(); };
+  return inp;
+}
+
+// ── Pyodide boot ───────────────────────────────────────────────────────────
+let pyReady = false;
+
+async function bootPyodide() {
+  setStatus('loading', 'Ładowanie środowiska Python…');
+  try {
+    window.pyodide = await loadPyodide();
+
+    // inject source files
+    const files = { 'cube_rings.py': CUBE_RINGS, 'cube_moves.py': CUBE_MOVES, 'cube.py': CUBE_PY, 'solve.py': SOLVE_PY, 'main.py': MAIN_PY };
+    for (const [name, src] of Object.entries(files)) {
+      pyodide.FS.writeFile(name, src, { encoding: 'utf8' });
+    }
+
+    await pyodide.runPythonAsync(`import sys; sys.path.insert(0, '/home/pyodide')`);
+    await pyodide.runPythonAsync(INIT_CODE);
+
+    pyReady = true;
+    setStatus('ready', 'Gotowe — środowisko Python załadowane');
+    document.getElementById('generateBtn').disabled = false;
+  } catch (e) {
+    const msg = e.message || String(e);
+    const isWasm = msg.includes('wasm') || msg.includes('DataClone') || msg.includes('postMessage');
+    if (isWasm) {
+      setStatus('error', 'WASM niedostępny w tym środowisku — wgraj plik na GitHub Pages lub otwórz lokalnie');
+      document.getElementById('generateBtn').textContent = 'Niedostępne w podglądzie';
+    } else {
+      setStatus('error', 'Błąd: ' + msg);
+    }
+  }
+}
+
+function setStatus(type, msg) {
+  document.getElementById('statusDot').className = 'status-dot ' + type;
+  document.getElementById('statusText').textContent = msg;
+}
+
+// ── Conflict validation ────────────────────────────────────────────────────
+function validateFilters() {
+  if (!pyReady) return;
+  const msg = document.getElementById('conflictMsg');
+  const btn = document.getElementById('generateBtn');
+  const conflict = getConflict();
+  if (conflict) {
+    msg.textContent = '⚠ ' + conflict;
+    msg.style.display = 'block';
+    btn.disabled = true;
+  } else {
+    msg.style.display = 'none';
+    btn.disabled = false;
+  }
+}
+
+function getConflict() {
+  const cs = state['corners'];
+  // get the corner targets constraint
+  let cornerMin = null, cornerMax = null, cornerExact = null;
+  if (cs.mode === 'exact' && cs.exact !== '') cornerExact = Number(cs.exact);
+  if (cs.mode === 'range') {
+    if (cs.min !== '') cornerMin = Number(cs.min);
+    if (cs.max !== '') cornerMax = Number(cs.max);
+  }
+
+  if (parityState === true) {
+    // parity=True requires odd corner targets
+    if (cornerExact !== null && cornerExact % 2 === 0)
+      return `Parity=True wymaga nieparzystej liczby targetów rogów, a ustawiono dokładnie ${cornerExact}.`;
+    if (cornerMin !== null && cornerMax !== null && cornerMin === cornerMax && cornerMin % 2 === 0)
+      return `Parity=True wymaga nieparzystej liczby targetów rogów, a zakres ${cornerMin}–${cornerMax} jest parzysty.`;
+    if (cornerMax !== null && cornerMax === 0)
+      return `Parity=True wymaga nieparzystej liczby targetów rogów — nie może być 0.`;
+  }
+
+  if (parityState === false) {
+    // parity=False requires even corner targets
+    if (cornerExact !== null && cornerExact % 2 === 1)
+      return `Parity=False wymaga parzystej liczby targetów rogów, a ustawiono dokładnie ${cornerExact}.`;
+    if (cornerMin !== null && cornerMax !== null && cornerMin === cornerMax && cornerMin % 2 === 1)
+      return `Parity=False wymaga parzystej liczby targetów rogów, a zakres ${cornerMin}–${cornerMax} jest nieparzysty.`;
+  }
+
+  return null;
+}
+
+// ── Generate ───────────────────────────────────────────────────────────────
+async function runGenerate() {
+  if (!pyReady) return;
+
+  const n = parseInt(document.getElementById('nScrambles').value) || 10;
+  const filters = {};
+  FILTERS.forEach(f => {
+    const s = state[f.id];
+    if (s.mode === 'any') { filters[f.id] = null; }
+    else if (s.mode === 'exact') { filters[f.id] = { exact: s.exact === '' ? null : Number(s.exact) }; }
+    else { filters[f.id] = { min: s.min === '' ? null : Number(s.min), max: s.max === '' ? null : Number(s.max) }; }
+  });
+
+  const btn = document.getElementById('generateBtn');
+  btn.disabled = true;
+  btn.textContent = 'Generuję…';
+  setStatus('loading', 'Generowanie scrambli…');
+
+  const pane = document.getElementById('resultsPane');
+  pane.innerHTML = '<div class="progress-bar"><div class="progress-fill" id="pbar"></div></div>';
+
+  try {
+    const filtersJson = JSON.stringify(filters);
+    const parityJson = parityState === 'any' ? 'None' : (parityState ? 'True' : 'False');
+    const advJson = JSON.stringify({
+      flipped_e: [...advSelected['flipped-e']], flipped_e_logic: advLogic['flipped-e'],
+      twisted_c: [...advSelected['twisted-c']], twisted_c_logic: advLogic['twisted-c'],
+      solved_e:  [...advSelected['solved-e']],  solved_e_logic:  advLogic['solved-e'],
+      solved_c:  [...advSelected['solved-c']],  solved_c_logic:  advLogic['solved-c'],
+      memo_e:    [...advSelected['memo-e']],    memo_e_logic:    advLogic['memo-e'],
+      memo_c:    [...advSelected['memo-c']],    memo_c_logic:    advLogic['memo-c'],
+      memo_ltct: [...advSelected['memo-ltct']], memo_ltct_logic: advLogic['memo-ltct'],
+    });
+    const result = await pyodide.runPythonAsync(`generate_scrambles(${n}, '${filtersJson}', ${parityJson}, '${advJson}')`);
+    const data = JSON.parse(result);
+    renderResults(data, n);
+    setStatus('ready', `Wygenerowano ${data.found} / ${n} scrambli`);
+  } catch (e) {
+    pane.innerHTML = `<div class="error-msg">Błąd: ${e.message}</div>`;
+    setStatus('error', 'Wystąpił błąd podczas generowania');
+  }
+
+  btn.disabled = false;
+  btn.textContent = 'Generuj';
+}
+
+// ── Render ─────────────────────────────────────────────────────────────────
+function renderResults(data, requested) {
+  const pane = document.getElementById('resultsPane');
+  pane.innerHTML = '';
+
+  const hdr = document.createElement('div');
+  hdr.className = 'results-header';
+  hdr.innerHTML = `
+    <span class="results-count">${data.found} z ${requested} scrambli &nbsp;·&nbsp; skuteczność: <span style="color:var(--accent2)">${data.hit_rate}%</span> (${data.found}/${data.attempts} prób)</span>
+    <button class="copy-all-btn" onclick="copyAll()">Kopiuj wszystkie</button>
+    <button class="copy-all-btn" onclick="exportTxt()" style="border-color:var(--accent2);color:var(--accent2)">Eksportuj .txt</button>
+  `;
+  pane.appendChild(hdr);
+
+  if (data.scrambles.length === 0) {
+    pane.innerHTML += `<div class="empty-state"><div class="big">∅</div><p>Nie znaleziono scrambli spełniających kryteria</p></div>`;
+    return;
+  }
+
+  const list = document.createElement('div');
+  list.className = 'scramble-list';
+  list.id = 'scrambleList';
+
+  data.scrambles.forEach((item, i) => {
+    const card = document.createElement('div');
+    card.className = 'scramble-card';
+    card.innerHTML = `
+      <div>
+        <div class="scramble-text">${item.scramble}</div>
+        <div class="scramble-meta">
+          <span class="tag tag-e">E: ${item.edges}</span>
+          <span class="tag tag-c">C: ${item.corners}</span>
+          <span class="tag tag-fl">FL: ${item.flips} / TW: ${item.twists}</span>
+          <span class="tag tag-br">BR-E: ${item.breaks_e}</span>
+          <span class="tag tag-br">BR-C: ${item.breaks_c}</span>
+          <span class="tag tag-sl">SL-E: ${item.solved_e}</span>
+          <span class="tag tag-sl">SL-C: ${item.solved_c}</span>
+          <span class="tag" style="border-color:#a78bfa55;color:#c4b5fd;background:#a78bfa10">PAR: ${item.parity ? "✓" : "✗"}</span>
+          ${item.ltct.length ? `<span class="tag" style="border-color:#f59e0b55;color:#fbbf24;background:#f59e0b10">LTCT: ${item.ltct.join(' ')}</span>` : ''}
+        </div>
+      </div>
+      <button class="copy-btn" onclick="copyOne(this, '${item.scramble}')">kopiuj</button>
+    `;
+    list.appendChild(card);
+  });
+
+  pane.appendChild(list);
+}
+
+function copyOne(btn, text) {
+  navigator.clipboard.writeText(text);
+  btn.textContent = '✓';
+  btn.classList.add('copied');
+  setTimeout(() => { btn.textContent = 'kopiuj'; btn.classList.remove('copied'); }, 1500);
+}
+
+function copyAll() {
+  const cards = document.querySelectorAll('.scramble-text');
+  const text = [...cards].map(c => c.textContent).join('\n');
+  navigator.clipboard.writeText(text);
+}
+
+function exportTxt() {
+  const cards = document.querySelectorAll('.scramble-text');
+  if (!cards.length) return;
+  const text = [...cards].map((c, i) => `${i+1}. ${c.textContent}`).join('\n');
+  const blob = new Blob([text], { type: 'text/plain' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'bld_scrambles.txt';
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+
+// ── Python source (embedded) ───────────────────────────────────────────────
+const CUBE_RINGS = `class Ring:
+\tdef __init__(self):
+\t\tself.rings = {
+\t\t\t\t'U': [['UF', 'UL', 'UB', 'UR'], ['FU', 'LU', 'BU', 'RU'], 
+\t\t\t\t['UFR', 'UFL', 'UBL', 'UBR'], ['FUR', 'LUF', 'BUL', 'RUB'], ['RUF', 'FUL', 'LUB', 'BUR']],
+\t\t\t\t'D': [['DF', 'DR', 'DB', 'DL'], ['FD', 'RD', 'BD', 'LD'],
+\t\t\t\t['DFR', 'DBR', 'DBL', 'DFL'], ['FDR', 'RDB', 'BDL', 'LDF'], ['RDF', 'BDR', 'LDB', 'FDL']],
+\t\t\t\t'R': [['UR', 'BR', 'DR', 'FR'], ['RU', 'RB', 'RD', 'RF'], 
+\t\t\t\t['UFR', 'BUR', 'DBR', 'FDR'], ['FUR', 'UBR', 'BDR', 'DFR'], ['RUF', 'RUB', 'RDB', 'RDF']],
+\t\t\t\t'L': [['UL', 'FL', 'DL', 'BL'], ['LU', 'LF', 'LD', 'LB'], 
+\t\t\t\t['UFL', 'FDL', 'DBL', 'BUL'], ['FUL', 'DFL', 'BDL', 'UBL'], ['LUF', 'LDF', 'LDB', 'LUB']],
+\t\t\t\t'F': [['UF', 'RF', 'DF', 'LF'], ['FU', 'FR', 'FD', 'FL'], 
+\t\t\t\t['UFR', 'RDF', 'DFL', 'LUF'], ['FUR', 'FDR', 'FDL', 'FUL'], ['RUF', 'DFR', 'LDF', 'UFL']],
+\t\t\t\t'B': [['UB', 'LB', 'DB', 'RB'], ['BU', 'BL', 'BD', 'BR'], 
+\t\t\t\t['UBR', 'LUB', 'DBL', 'RDB'], ['BUR', 'BUL', 'BDL', 'BDR'], ['RUB', 'UBL', 'LDB', 'DBR']],
+\t\t\t\t'M': [['UF', 'FD', 'DB', 'BU'], ['FU', 'DF', 'BD', 'UB']],
+\t\t\t\t'S': [['UR', 'RD', 'DL', 'LU'], ['RU', 'DR', 'LD', 'UL']],
+\t\t\t\t'E': [['FL', 'RF', 'BR', 'LB'], ['LF', 'FR', 'RB', 'BL']]
+\t\t\t\t}
+`;
+
+const CUBE_MOVES = `from cube_rings import *
+
+class Move:
+\tdef __init__(self, move, ring):
+\t\tself.ring = ring
+\t\tself.move = move
+\t\tself.layer = move[0]
+\t\tif len(move) == 1: self.direction = 1
+\t\telif move[-1] == '2': self.direction = 2
+\t\telse: self.direction = -1
+
+\tdef do(self):
+\t\tcycled_groups = []
+\t\tfor group in self.ring.rings[self.layer]:
+\t\t\tif self.direction == 1: cycled = [group[3], group[0], group[1], group[2]]
+\t\t\telif self.direction == -1: cycled = [group[1], group[2], group[3], group[0]]
+\t\t\telse: cycled = [group[2], group[3], group[0], group[1]]
+\t\t\tcycled_groups.append([group, cycled])
+\t\treturn cycled_groups
+`;
+
+const CUBE_PY = `from cube_moves import *
+
+class Cube:
+\trotations = {
+\t'M': 'x',
+\t'S': 'z',
+\t'E': 'y',
+\t'x2': ['R2', 'L2', 'M2'],
+\t'z2': ['F2', 'B2', 'S2'],
+\t'y2': ['U2', 'D2', 'E2'],
+\t"x'": ["R'", "L", "M"],
+\t"y'": ["U'", "D", "E"],
+\t"z": ["F'", "S'", "B"],
+\t"x": ["R", "L'", "M'"],
+\t"y": ["U", "D'", "E'"],
+\t"z'": ["F", "S", "B'"]
+\t}
+
+\tmiddles = {
+\t\t"Rw2": ["R2", 'M2'],
+\t\t"Uw2": ["U2", 'E2'],
+\t\t"Fw2": ["F2", 'S2'],
+\t\t"Rw'": ["R'", 'M'],
+\t\t"Uw'": ["U'", 'E'],
+\t\t"Fw'": ["F'", "S'"],
+\t\t"Rw": ["R", "M'"],
+\t\t"Uw": ["U", "E'"],
+\t\t"Fw": ["F", 'S']
+\t\t}
+
+\tdef __init__(self):
+\t\tself.rotations_path = []
+\t\tself.stickers = {
+\t\t'UF': 'bufferX',
+\t\t'FU': 'buffer1',
+\t\t'UB': 'A',
+\t\t'BU': 'B',
+\t\t'UL': 'E',
+\t\t'LU': 'F',
+\t\t'UR': 'G',
+\t\t'RU': 'H',
+\t\t'DF': 'I',
+\t\t'FD': 'J',
+\t\t'DL': 'M',
+\t\t'LD': 'N',
+\t\t'DB': 'O',
+\t\t'BD': 'P',
+\t\t'DR': 'K',
+\t\t'RD': 'L',
+\t\t'FR': 'R',
+\t\t'RF': 'S',
+\t\t'FL': 'T',
+\t\t'LF': 'U',
+\t\t'BL': 'W',
+\t\t'LB': 'C',
+\t\t'BR': 'D',
+\t\t'RB': 'Z',
+\t\t'UFR': 'bufferX',
+\t\t'FUR': 'buffer1',
+\t\t'RUF': 'buffer2',
+\t\t'UFL': 'G',
+\t\t'FUL': 'H',
+\t\t'LUF': 'I',
+\t\t'UBR': 'A',
+\t\t'BUR': 'B',
+\t\t'RUB': 'C',
+\t\t'UBL': 'D',
+\t\t'BUL': 'E',
+\t\t'LUB': 'F',
+\t\t'DBR': 'J',
+\t\t'BDR': 'K',
+\t\t'RDB': 'M',
+\t\t'DFR': 'N',
+\t\t'FDR': 'O',
+\t\t'RDF': 'P',
+\t\t'DFL': 'R',
+\t\t'FDL': 'S',
+\t\t'LDF': 'T',
+\t\t'DBL': 'U',
+\t\t'BDL': 'W',
+\t\t'LDB': 'Z'
+\t\t}
+\t\tself.group_by_type()
+
+\tdef group_by_type(self):
+\t\tself.groups = {}
+\t\tedges, corners = [], []
+\t\tfor target in self.stickers:
+\t\t\tif len(target) == 2: edges.append(target)
+\t\t\telse: corners.append(target)
+\t\tto_add = []
+\t\tfor n in range(len(edges)):
+\t\t\tto_add.append(edges[n])
+\t\t\tif n%2 == 1:
+\t\t\t\tself.groups[edges[n-1]] = to_add
+\t\t\t\tto_add = []
+\t\tfor n in range(len(corners)):
+\t\t\tto_add.append(corners[n])
+\t\t\tif n%3 == 2:
+\t\t\t\tself.groups[corners[n-2]] = to_add
+\t\t\t\tto_add = []
+
+\tdef assign_rotation(self, move):
+\t\tif move[0] in Cube.rotations:
+\t\t\tif len(move) == 1:
+\t\t\t\tself.rotations_path.append(Cube.rotations[move[0]])
+\t\t\telse:
+\t\t\t\tself.rotations_path.append(Cube.rotations[move[0]] + move[-1])
+
+\tdef return_to_WG(self):
+\t\tfor rot in reversed(self.rotations_path):
+\t\t\tfor i in range(3):
+\t\t\t\tself.returning_moves.append(Cube.rotations[rot][i])
+
+\tdef scrambling(self, scramble, ring):
+\t\tself.raw_scramble = scramble.split()
+\t\tself.edited_scramble, self.returning_moves = [], []
+\t\tfor move in self.raw_scramble:
+\t\t\tif move.find('w') == -1: self.edited_scramble.append(move)
+\t\t\telse:
+\t\t\t\tmvs = Cube.middles[move]
+\t\t\t\tself.edited_scramble.append(mvs[0])
+\t\t\t\tself.edited_scramble.append(mvs[1])
+\t\tfor move in self.edited_scramble:
+\t\t\tself.assign_rotation(move)
+\t\tself.return_to_WG()
+\t\tself.edited_scramble += self.returning_moves
+\t\tfor move in self.edited_scramble:
+\t\t\tcurrent_move = Move(move, ring)
+\t\t\tall_cycles = current_move.do()
+\t\t\tfor cycles in all_cycles:
+\t\t\t\tnew_stickers = []
+\t\t\t\tfor target in cycles[1]:
+\t\t\t\t\tnew_stickers.append(self.stickers[target])
+\t\t\t\tfor i in range(4):
+\t\t\t\t\tself.stickers[cycles[0][i]] = new_stickers[i]
+`;
+
+const SOLVE_PY = `from cube_rings import *
+from cube import *
+import math
+from itertools import permutations
+
+class Solve:
+\tdef __init__(self, scramble):
+\t\tself.scramble = scramble
+\t\tself.scrambled, self.solved = Cube(), Cube()
+\t\tring = Ring()
+\t\tself.scrambled.scrambling(self.scramble, ring)
+\t\tself.find_solved_elements()
+\t\tself.find_flips()
+\t\tself.memo()
+
+\tdef find_solved_elements(self):
+\t\tself.solved_edges, self.solved_corners = 0,0
+\t\tself.solved_groups = []
+\t\tfor target in self.solved.groups:
+\t\t\tif self.solved.stickers[target] == self.scrambled.stickers[target] and self.solved.stickers[target][:6] != 'buffer':
+\t\t\t\tself.solved_groups.append(target)
+\t\t\t\tif len(target) == 2: self.solved_edges += 1
+\t\t\t\telse: self.solved_corners += 1
+
+\tdef find_base_sticker(self):
+\t\tbase = ['A', 'D', 'G', 'J', 'N', 'R', 'U']
+\t\tcorrected_flips = []
+\t\tfor twist in self.flipped_groups:
+\t\t\tif len(twist) == 2:
+\t\t\t\tcorrected_flips.append(twist)
+\t\t\telse:
+\t\t\t\tperms = [''.join(t) for t in permutations(twist)]
+\t\t\t\tfor p in perms:
+\t\t\t\t\ttry:
+\t\t\t\t\t\tif self.scrambled.stickers[p] in base:
+\t\t\t\t\t\t\tcorrected_flips.append(p)
+\t\t\t\t\t\t\tbreak
+\t\t\t\t\texcept:
+\t\t\t\t\t\tcontinue
+\t\tself.flipped_groups = corrected_flips
+
+\tdef find_flips(self):
+\t\tself.flips, self.twists = 0,0
+\t\tself.flipped_groups = []
+\t\tfor target in self.solved.groups:
+\t\t\tsolved_state, scrambled_state = [], []
+\t\t\tfor sticker in self.solved.groups[target]:
+\t\t\t\tsolved_state.append(self.solved.stickers[sticker])
+\t\t\t\tscrambled_state.append(self.scrambled.stickers[sticker])
+\t\t\tif sorted(solved_state) == sorted(scrambled_state) and solved_state != scrambled_state and target != 'UF' and target != 'UFR' and target != 'UR':
+\t\t\t\tself.flipped_groups.append(target)
+\t\t\t\tif len(solved_state) == 2: self.flips += 1
+\t\t\t\telse: self.twists += 1
+\t\t\telse: continue
+\t\tself.find_base_sticker()
+
+\tdef return_target(self, letter, type_of_element):
+\t\tif type_of_element == 'c': length = 3
+\t\telse: length = 2
+\t\tfor target in self.scrambled.stickers:
+\t\t\tif self.solved.stickers[target] == letter and length == len(target):
+\t\t\t\tfor group in self.solved.groups:
+\t\t\t\t\tif target in self.solved.groups[group]:
+\t\t\t\t\t\treturn target, group
+
+\tdef memo(self):
+\t\tself.edges_memo_cycle = ['UF']
+\t\tself.corners_memo_cycle = ['UFR']
+\t\tself.memorized_edges, self.memorized_corners = [], []
+\t\tself.edge_breaks, self.corner_breaks = 0, 0
+\t\tself.parity = 0
+\t\tmemoed = []
+\t\tplace_of_break = ''
+\t\tfor current_target in self.corners_memo_cycle:
+\t\t\ttarget_sticker = self.scrambled.stickers[current_target]
+\t\t\tif target_sticker[:6] == 'buffer' or self.return_group(current_target) == place_of_break:
+\t\t\t\ttarget = self.find_free_target(memoed, 'c')
+\t\t\t\tif target == None:
+\t\t\t\t\tbreak
+\t\t\t\telse:
+\t\t\t\t\tself.corner_breaks += 1
+\t\t\t\t\tself.memorized_corners.append(self.solved.stickers[target])
+\t\t\t\t\tplace_of_break = target
+\t\t\t\t\tself.memorized_corners.append(self.scrambled.stickers[target])
+\t\t\t\t\ttarget_sticker = self.scrambled.stickers[target]
+\t\t\t\t\tnext_target, grp = self.return_target(target_sticker, 'c')
+\t\t\t\t\tself.corners_memo_cycle.append(next_target)
+\t\t\t\t\tmemoed.append(grp)
+\t\t\t\t\tcontinue
+\t\t\telse:
+\t\t\t\tself.memorized_corners.append(target_sticker)
+\t\t\t\tnext_target, grp = self.return_target(target_sticker, 'c')
+\t\t\t\tself.corners_memo_cycle.append(next_target)
+\t\t\t\tmemoed.append(grp)
+\t\tif len(self.memorized_corners) % 2 == 1:
+\t\t\tself.memoswap()
+\t\t\tself.parity = 1
+\t\tplace_of_break = ''
+\t\tfor current_target in self.edges_memo_cycle:
+\t\t\ttarget_sticker = self.scrambled.stickers[current_target]
+\t\t\tif target_sticker[:6] == 'buffer' or self.return_group(current_target) == place_of_break:
+\t\t\t\ttarget = self.find_free_target(memoed, 'e')
+\t\t\t\tif target == None:
+\t\t\t\t\tbreak
+\t\t\t\telse:
+\t\t\t\t\tself.edge_breaks += 1
+\t\t\t\t\tself.memorized_edges.append(self.solved.stickers[target])
+\t\t\t\t\tplace_of_break = target
+\t\t\t\t\tself.memorized_edges.append(self.scrambled.stickers[target])
+\t\t\t\t\ttarget_sticker = self.scrambled.stickers[target]
+\t\t\t\t\tnext_target, grp = self.return_target(target_sticker, 'e')
+\t\t\t\t\tself.edges_memo_cycle.append(next_target)
+\t\t\t\t\tmemoed.append(grp)
+\t\t\t\t\tcontinue
+\t\t\telse:
+\t\t\t\tself.memorized_edges.append(target_sticker)
+\t\t\t\tnext_target, grp = self.return_target(target_sticker, 'e')
+\t\t\t\tself.edges_memo_cycle.append(next_target)
+\t\t\t\tmemoed.append(grp)
+\t\tself.edge_memo_pairs = Solve.create_pairs(self.memorized_edges)
+\t\tself.corner_memo_pairs = Solve.create_pairs(self.memorized_corners)
+\t\tif 'GG' in self.edge_memo_pairs or 'HH' in self.edge_memo_pairs:
+\t\t\tself.edge_memo_pairs = [x for x in self.edge_memo_pairs if x not in ['GG', 'HH']]
+\t\t\tself.solved_groups.append('UR')
+\t\t\tself.solved_edges += 1
+\t\telif 'GH' in self.edge_memo_pairs or 'HG' in self.edge_memo_pairs:
+\t\t\tself.edge_memo_pairs = [x for x in self.edge_memo_pairs if x not in ['GH', 'HG']]
+\t\t\tself.flipped_groups.append('UR')
+\t\t\tself.flips += 1
+\t\tself.memorized_edges = ''.join(self.edge_memo_pairs)
+
+\t\t# UR jest częścią memoswap przy parity - nie jest flipnięty
+\t\tif self.parity and 'UR' in self.flipped_groups:
+\t\t\tself.flipped_groups.remove('UR')
+\t\t\tself.flips -= 1
+
+\t@staticmethod
+\tdef create_pairs(element_memo):
+\t\tpairs = []
+\t\tfor i in range(0, len(element_memo), 2):
+\t\t\tpair = element_memo[i:i+2]
+\t\t\tpairs.append(''.join(pair))
+\t\treturn pairs
+
+\tdef memoswap(self):
+\t\tfor target in self.scrambled.stickers:
+\t\t\tif len(target) == 2:
+\t\t\t\tif self.scrambled.stickers[target] == 'bufferX':
+\t\t\t\t\tnewG = target
+\t\t\t\telif self.scrambled.stickers[target] == 'buffer1':
+\t\t\t\t\tnewH = target
+\t\t\t\telif self.scrambled.stickers[target] == 'G':
+\t\t\t\t\tnewbuffX = target
+\t\t\t\telif self.scrambled.stickers[target] == 'H':
+\t\t\t\t\tnewbuff1 = target
+\t\tself.scrambled.stickers[newbuffX] = 'bufferX'
+\t\tself.scrambled.stickers[newbuff1] = 'buffer1'
+\t\tself.scrambled.stickers[newG] = 'G'
+\t\tself.scrambled.stickers[newH] = 'H'
+
+\tdef find_free_target(self, memoed, type_of_element):
+\t\tflips_perms = []
+\t\tfor fl in self.flipped_groups:
+\t\t\tflips_perms += [''.join(p) for p in permutations(fl)]
+\t\tif type_of_element == 'c': length = 3
+\t\telse: length = 2
+\t\tfor target in self.solved.groups:
+\t\t\tif target == 'UF' or target == 'UFR' or len(target) != length: continue
+\t\t\tif target not in memoed+self.solved_groups and target not in flips_perms:
+\t\t\t\treturn target
+\t\treturn None
+
+\tdef return_group(self, target):
+\t\tfor group in self.solved.groups:
+\t\t\tif target in self.solved.groups[group]:
+\t\t\t\treturn group
+
+\t@staticmethod
+\tdef apostrophes(elements):
+\t\tc_index, e_index = '', ''
+\t\tfor target in elements:
+\t\t\tif len(target) == 2:
+\t\t\t\te_index += "'"
+\t\t\telse:
+\t\t\t\tc_index += "'"
+\t\treturn e_index, c_index
+`;
+
+const MAIN_PY = `from random import choice
+
+def generate_move(moves, direction):
+\tm = choice(moves)
+\td = choice(direction)
+\treturn m+d
+
+def forbidden(last_move):
+\tmatch last_move:
+\t\tcase "U": pair = "D"
+\t\tcase "D": pair = "U"
+\t\tcase "L": pair = "R"
+\t\tcase "R": pair = "L"
+\t\tcase "F": pair = "B"
+\t\tcase "B": pair = "F"
+\tpos_moves = []
+\tfor m in moves:
+\t\tif m not in [last_move, pair]:
+\t\t\tpos_moves.append(m)
+\treturn pos_moves
+
+def scramble(length=20):
+\tscramble_str = ''
+\tSCR = [generate_move(moves, direction)]
+\tfor _ in range(length-1):
+\t\tpossible_moves = forbidden(SCR[-1][0])
+\t\tSCR.append(generate_move(possible_moves, direction))
+\tfor m in SCR:
+\t\tscramble_str += f'{m} '
+\treturn scramble_str[:-1]
+
+moves = ['U', 'D', 'L', 'R', 'F', 'B']
+direction = ["", "'", "2"]
+`;
+
+const INIT_CODE = `
+import sys, json
+sys.path.insert(0, '.')
+
+exec(open('cube_rings.py').read())
+exec(open('cube_moves.py').read())
+exec(open('cube.py').read())
+exec(open('solve.py').read())
+exec(open('main.py').read())
+
+def matches_filter(value, f):
+    if f is None: return True
+    if 'exact' in f:
+        if f['exact'] is None: return True
+        return value == f['exact']
+    lo = f.get('min')
+    hi = f.get('max')
+    if lo is not None and value < lo: return False
+    if hi is not None and value > hi: return False
+    return True
+
+def generate_scrambles(n, filters_json, parity_filter=None, adv_json='{}'):
+    adv = json.loads(adv_json)
+    def check_set(required, actual, logic):
+        if not required: return True
+        s = set(actual)
+        if logic == 'and': return required.issubset(s)
+        else: return bool(required & s)
+
+    req_flipped_e = set(adv.get('flipped_e', [])); logic_flipped_e = adv.get('flipped_e_logic','or')
+    req_twisted_c = set(adv.get('twisted_c', [])); logic_twisted_c = adv.get('twisted_c_logic','or')
+    req_solved_e  = set(adv.get('solved_e',  [])); logic_solved_e  = adv.get('solved_e_logic', 'or')
+    req_solved_c  = set(adv.get('solved_c',  [])); logic_solved_c  = adv.get('solved_c_logic', 'or')
+    req_memo_e    = set(adv.get('memo_e',    [])); logic_memo_e    = adv.get('memo_e_logic',   'or')
+    req_memo_c    = set(adv.get('memo_c',    [])); logic_memo_c    = adv.get('memo_c_logic',   'or')
+    req_memo_ltct = set(adv.get('memo_ltct', [])); logic_memo_ltct = adv.get('memo_ltct_logic','or')
+    filters = json.loads(filters_json)
+    from cube import Cube as _Cube
+    solved_cube = _Cube()
+    results = []
+    MAX_ATTEMPTS = 5000
+    attempts = 0
+    while len(results) < n and attempts < n * MAX_ATTEMPTS:
+        attempts += 1
+        scr = scramble(20)
+        try:
+            s = Solve(scr)
+        except Exception:
+            continue
+        
+        
+        if not matches_filter(len(s.memorized_edges), filters.get('edges')): continue
+        if not matches_filter(len(''.join(s.corner_memo_pairs)), filters.get('corners')): continue
+        if not matches_filter(s.flips, filters.get('flips')): continue
+        if not matches_filter(s.twists, filters.get('twists')): continue
+        # LTCT: parity + twists -> code = last_corner_memo_letter + twist_letter.lower()
+        twists = [g for g in s.flipped_groups if len(g) == 3]
+        if s.parity and twists and s.corner_memo_pairs:
+            last_c = s.corner_memo_pairs[-1][-1]
+            ltct_codes = [last_c + solved_cube.stickers[t].lower() for t in twists]
+        else:
+            ltct_codes = []
+        if req_memo_ltct and not check_set(req_memo_ltct, ltct_codes, logic_memo_ltct): continue
+        if req_memo_e and s.edge_breaks != 0: continue
+        elif not matches_filter(s.edge_breaks, filters.get('breaks_e')): continue
+        if (req_memo_c or req_memo_ltct) and s.corner_breaks != 0: continue
+        elif not matches_filter(s.corner_breaks, filters.get('breaks_c')): continue
+        if not matches_filter(s.solved_edges, filters.get('solved_e')): continue
+        if not matches_filter(s.solved_corners, filters.get('solved_c')): continue
+        if parity_filter is not None and bool(s.parity) != bool(parity_filter): continue
+        if not check_set(req_flipped_e, s.flipped_groups,   logic_flipped_e): continue
+        if not check_set(req_twisted_c, s.flipped_groups,   logic_twisted_c): continue
+        if not check_set(req_solved_e,  s.solved_groups,    logic_solved_e):  continue
+        if not check_set(req_solved_c,  s.solved_groups,    logic_solved_c):  continue
+        if not check_set(req_memo_e,    s.edge_memo_pairs,  logic_memo_e):    continue
+        if not check_set(req_memo_c,    s.corner_memo_pairs,logic_memo_c):    continue
+        
+        results.append({
+            'scramble': scr,
+            'ltct': ltct_codes,
+            'edges': len(s.memorized_edges),
+            'corners': len(''.join(s.corner_memo_pairs)),
+            'flips': s.flips,
+            'twists': s.twists,
+            'breaks_e': s.edge_breaks,
+            'breaks_c': s.corner_breaks,
+            'solved_e': s.solved_edges,
+            'solved_c': s.solved_corners,
+            'parity': bool(s.parity)
+        })
+    
+    valid = len(results)
+    hit_rate = round(valid / attempts * 100, 1) if attempts > 0 else 0
+    return json.dumps({'found': valid, 'attempts': attempts, 'hit_rate': hit_rate, 'scrambles': results})
+`;
+
+// ── Init ───────────────────────────────────────────────────────────────────
+
+// ── Presets ────────────────────────────────────────────────────────────────
+function collectState() {
+  const filters = {};
+  FILTERS.forEach(f => {
+    const s = state[f.id];
+    filters[f.id] = { mode: s.mode, exact: s.exact, min: s.min, max: s.max };
+  });
+  const adv = {};
+  Object.keys(advSelected).forEach(id => { adv[id] = [...advSelected[id]]; });
+  const logic = { ...advLogic };
+  return {
+    filters,
+    parity: parityState,
+    nScrambles: document.getElementById('nScrambles').value,
+    adv,
+    logic,
+    advOpen: document.getElementById('advPanel').classList.contains('open'),
+  };
+}
+
+function applyState(data) {
+  // numeric filters
+  FILTERS.forEach(f => {
+    if (!data.filters[f.id]) return;
+    const s = data.filters[f.id];
+    state[f.id] = { mode: s.mode, exact: s.exact ?? '', min: s.min ?? '', max: s.max ?? '' };
+  });
+  // rebuild filter UI
+  document.getElementById('filterGroupEdge').innerHTML = '';
+  document.getElementById('filterGroupCorner').innerHTML = '';
+  document.getElementById('filterGroupExtra').innerHTML = '';
+  document.getElementById('parityContainer').innerHTML = '';
+  buildFilters();
+  // parity
+  parityState = data.parity ?? 'any';
+  // advanced selected
+  Object.keys(advSelected).forEach(id => {
+    advSelected[id].clear();
+    // clear tags from wrap
+    const wrap = document.getElementById('wrap-' + id);
+    if (wrap) wrap.querySelectorAll('.tag-item').forEach(t => t.remove());
+  });
+  if (data.adv) {
+    Object.keys(data.adv).forEach(id => {
+      (data.adv[id] || []).forEach(val => addTag(id, val));
+    });
+  }
+  // logic toggles
+  if (data.logic) {
+    Object.keys(data.logic).forEach(id => setLogic(id, data.logic[id]));
+  }
+  // n scrambles
+  if (data.nScrambles) document.getElementById('nScrambles').value = data.nScrambles;
+  // adv panel open state
+  const panel = document.getElementById('advPanel');
+  const btn = document.getElementById('advToggle');
+  if (data.advOpen && !panel.classList.contains('open')) {
+    panel.classList.add('open'); btn.classList.add('open');
+  } else if (!data.advOpen && panel.classList.contains('open')) {
+    panel.classList.remove('open'); btn.classList.remove('open');
+  }
+  validateFilters();
+}
+
+function savePreset() {
+  document.getElementById('presetNameInput').value = '';
+  document.getElementById('presetModal').classList.add('open');
+  setTimeout(() => document.getElementById('presetNameInput').focus(), 50);
+}
+
+function closePresetModal() {
+  document.getElementById('presetModal').classList.remove('open');
+}
+
+function confirmSavePreset() {
+  const name = document.getElementById('presetNameInput').value.trim() || 'preset';
+  const data = { name, ...collectState() };
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = name.replace(/[^a-z0-9_\-]/gi, '_') + '.json';
+  a.click();
+  URL.revokeObjectURL(a.href);
+  closePresetModal();
+}
+
+function triggerLoadPreset() {
+  document.getElementById('presetFileInput').value = '';
+  document.getElementById('presetFileInput').click();
+}
+
+function loadPreset(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    try {
+      const data = JSON.parse(e.target.result);
+      applyState(data);
+      setStatus('ready', `Wczytano preset: ${data.name || file.name}`);
+    } catch {
+      setStatus('error', 'Błąd: nieprawidłowy plik presetu');
+      setTimeout(() => setStatus('ready', 'Gotowe'), 3000);
+    }
+  };
+  reader.readAsText(file);
+}
+
+buildFilters();
+buildTagInputs();
+bootPyodide();
+</script>
+</body>
+</html>
