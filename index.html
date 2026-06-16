@@ -1324,7 +1324,7 @@ function makeInput(f, val, onchange) {
 let pyReady = false;
 let workers = [];
 let workerReady = [];
-const NUM_WORKERS = Math.max(1, (navigator.hardwareConcurrency || 4) - 2);
+const NUM_WORKERS = Math.min(3, Math.max(1, (navigator.hardwareConcurrency || 4) - 2));
 
 const PY_FILES = {
   'cube_rings.py': CUBE_RINGS,
@@ -1461,7 +1461,13 @@ function getConflict() {
 
 // ── Generate ───────────────────────────────────────────────────────────────
 async function runGenerate() {
-  if (!pyReady) return;
+  if (!pyReady) {
+    // Lazy boot on first generate click
+    document.getElementById('generateBtn').disabled = true;
+    document.getElementById('generateBtn').textContent = 'Ładowanie…';
+    await bootPyodide();
+    if (!pyReady) return; // boot failed
+  }
 
   const n = parseInt(document.getElementById('nScrambles').value) || 10;
   const scheme = {};
@@ -2287,7 +2293,9 @@ function loadPreset(event) {
 
 buildFilters();
 buildTagInputs();
-bootPyodide();
+setStatus('ready', 'Kliknij "Generuj" aby załadować środowisko i rozpocząć');
+document.getElementById('statusDot').className = 'status-dot ready';
+document.getElementById('generateBtn').disabled = false;
 </script>
 </body>
 </html>
